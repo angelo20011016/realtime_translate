@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Translator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 1.5rem;
+            color: #1c1e21;
+        }
+        #recordButton {
+            padding: 0.8rem 1.5rem;
+            font-size: 1rem;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #recordButton.recording {
+            background-color: #dc3545;
+        }
+        #recordButton:hover {
+            opacity: 0.9;
+        }
+        .status {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #606770;
+        }
+        .text-container {
+            margin-top: 2rem;
+            text-align: left;
+            padding: 1rem;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+        }
+        .text-container h2 {
+            font-size: 1.1rem;
+            color: #1c1e21;
+            border-bottom: 1px solid #dddfe2;
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+        #originalText, #translatedText {
+            min-height: 50px;
+            color: #1c1e21;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-time Speech Translator</h1>
+        <button id="recordButton">Start Recording</button>
+        <div id="status" class="status">Click "Start Recording" and begin speaking.</div>
+        
+        <div class="text-container">
+            <h2>Original (English)</h2>
+            <div id="originalText"></div>
+        </div>
+        
+        <div class="text-container">
+            <h2>Translation (Traditional Chinese)</h2>
+            <div id="translatedText"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
