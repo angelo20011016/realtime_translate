@@ -104,6 +104,6 @@ def handle_disconnect():
         speech_recognizer.stop_continuous_recognition()
 
 if __name__ == '__main__':
-    logging.info("Starting Flask-SocketIO server.")
+    logging.info("Starting Flask-SocketIO server with SSL.")
     # For development, run directly. For production, use a proper WSGI server like Gunicorn.
-    socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=443, allow_unsafe_werkzeug=True, certfile='/etc/letsencrypt/live/happywecan.com/fullchain.pem', keyfile='/etc/letsencrypt/live/happywecan.com/privkey.pem')
