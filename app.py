@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import time
 from dotenv import load_dotenv
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
@@ -45,18 +46,35 @@ def handle_interim_recognition(text, sid):
     logging.info(f"Interim text for sid {sid}: '{text}'")
     socketio.emit('interim_result', {'text': text}, room=sid)
 
-def translate_and_refine(text, sid):
+def translate_and_refine(evt, sid):
     """Translates and refines text using Gemini and sends it to a specific client."""
-    logging.info(f"Final recognized text for sid {sid}: '{text}'")
+    text = evt.result.text
+    if not text:
+        logging.info(f"Received empty recognized event for sid {sid}. Skipping.")
+        return
+
+    # Speech recognition duration in seconds from Azure SDK result (1 tick = 100 nanoseconds)
+    speech_duration_seconds = evt.result.duration / 10_000_000.0
+
+    logging.info(f"Final recognized text for sid {sid}: '{text}' (Duration: {speech_duration_seconds:.2f}s)")
     try:
         prompt = f"You are an expert in oral translation, good at refining a user's unsmooth language and translating it into colloquial sentences. Input: '{text}' 請單純回傳翻譯過後的句子 不要解釋"
+        
+        start_time = time.time()
         response = model.generate_content(prompt)
+        end_time = time.time()
+        translation_duration = end_time - start_time
+
         refined_text = response.text
-        logging.info(f"Refined text for sid {sid}: '{refined_text}'")
+        logging.info(f"Refined text for sid {sid}: '{refined_text}' (Translation took: {translation_duration:.2f}s)")
         
         socketio.emit('final_result', {
             "original": text,
-            "refined": refined_text
+            "refined": refined_text,
+            "timings": {
+                "speech_recognition": f"{speech_duration_seconds:.2f}",
+                "translation": f"{translation_duration:.2f}"
+            }
         }, room=sid)
     except Exception as e:
         logging.error(f"Gemini API error for sid {sid}: {e}")
@@ -79,7 +97,7 @@ def handle_connect():
     speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
     speech_recognizer.recognizing.connect(lambda evt: handle_interim_recognition(evt.result.text, sid))
-    speech_recognizer.recognized.connect(lambda evt: translate_and_refine(evt.result.text, sid))
+    speech_recognizer.recognized.connect(lambda evt: translate_and_refine(evt, sid))
     
     recognizers[sid] = (speech_recognizer, push_stream)
     
