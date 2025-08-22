@@ -20,12 +20,9 @@ socketio = SocketIO(app)
 try:
     gemini_api_key = os.environ["GEMINI_API_KEY"]
     genai.configure(api_key=gemini_api_key)
+    model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 except KeyError:
     raise RuntimeError("GEMINI_API_KEY not found in .env file. Please add it.")
-
-# As per user request, using 'gemini-2.5-flash-lite'.
-# If this model name is invalid, the script will fail at runtime.
-model = genai.GenerativeModel(model_name="gemini-2.5-flash-lite")
 
 # --- Azure Speech SDK Configuration ---
 try:
@@ -35,32 +32,91 @@ except KeyError:
     raise RuntimeError("AZURE_SPEECH_KEY or AZURE_SPEECH_REGION not found in .env file. Please add them.")
 
 speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
-speech_config.speech_recognition_language = "en-US"
 
-# Dictionary to hold recognizer instances for each client
-recognizers = {}
+# --- Language and Voice Configuration ---
+LANGUAGE_VOICES = {
+    "en-US": "en-US-JennyNeural",
+    "zh-TW": "zh-TW-HsiaoChenNeural",
+    "ja-JP": "ja-JP-NanamiNeural"
+}
+LANGUAGE_NAMES = {
+    "en-US": "English",
+    "zh-TW": "Traditional Chinese",
+    "ja-JP": "Japanese"
+}
 
-def handle_interim_recognition(text, sid):
-    """Handles interim recognition results."""
-    logging.info(f"Interim text for sid {sid}: '{text}'")
-    socketio.emit('interim_result', {'text': text}, room=sid)
+# Dictionary to hold recognizer and settings for each client
+clients = {}
 
-def translate_and_refine(text, sid):
-    """Translates and refines text using Gemini and sends it to a specific client."""
-    logging.info(f"Final recognized text for sid {sid}: '{text}'")
+def get_translation_prompt(text, target_lang_code):
+    """Generates a prompt for the Gemini model."""
+    target_language_name = LANGUAGE_NAMES.get(target_lang_code, "the target language")
+    return (
+        f"You are an expert in oral translation. Your task is to translate the user's input into natural, "
+        f"colloquial {target_language_name}. The user's input might be fragmented or ungrammatical because it's from real-time speech. "
+        f"Refine it and provide a fluent translation. "
+        f"Input: '{text}'\n"
+        f"Please return only the translated sentence, without any explanation or extra text."
+    )
+
+def synthesize_speech(text, lang_code, sid):
+    """Synthesizes text to speech and sends it to the client."""
     try:
-        prompt = f"You are an expert in oral translation, good at refining a user's unsmooth language and translating it into colloquial sentences. Input: '{text}' 請單純回傳翻譯過後的句子 不要解釋"
+        voice_name = LANGUAGE_VOICES.get(lang_code)
+        if not voice_name:
+            logging.warning(f"No voice configured for language {lang_code} for sid {sid}")
+            return
+
+        speech_config.speech_synthesis_voice_name = voice_name
+        # Use a memory stream to hold the synthesized audio
+        result = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None).speak_text_async(text).get()
+
+        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+            logging.info(f"Speech synthesis successful for sid {sid}.")
+            # Emit the audio data directly to the client
+            socketio.emit('audio_synthesis_result', {'audio': result.audio_data}, room=sid)
+        else:
+            cancellation = result.cancellation_details
+            logging.error(f"Speech synthesis canceled for sid {sid}: {cancellation.reason}")
+            if cancellation.reason == speechsdk.CancellationReason.Error:
+                logging.error(f"Error details: {cancellation.error_details}")
+
+    except Exception as e:
+        logging.error(f"Error during speech synthesis for sid {sid}: {e}")
+
+
+def handle_final_recognition(text, sid):
+    """Handles final recognition results, translates, and optionally synthesizes speech."""
+    if not text:
+        return
+        
+    client_info = clients.get(sid)
+    if not client_info:
+        logging.warning(f"Could not find client info for sid {sid}")
+        return
+
+    logging.info(f"Final recognized text for sid {sid}: '{text}'")
+    
+    target_lang = client_info['target_lang']
+    tts_enabled = client_info['tts_enabled']
+
+    try:
+        prompt = get_translation_prompt(text, target_lang)
         response = model.generate_content(prompt)
-        refined_text = response.text
-        logging.info(f"Refined text for sid {sid}: '{refined_text}'")
+        refined_text = response.text.strip()
+        logging.info(f"Translated text for sid {sid}: '{refined_text}'")
         
         socketio.emit('final_result', {
             "original": text,
             "refined": refined_text
         }, room=sid)
+
+        if tts_enabled:
+            synthesize_speech(refined_text, target_lang, sid)
+
     except Exception as e:
         logging.error(f"Gemini API error for sid {sid}: {e}")
-        socketio.emit('translation_error', {"error": "Translation and refinement failed."}, room=sid)
+        socketio.emit('translation_error', {"error": "Translation failed."}, room=sid)
 
 
 @app.route('/')
@@ -71,39 +127,59 @@ def index():
 @socketio.on('connect')
 def handle_connect():
     """Handles a new client connection."""
+    logging.info(f"Client connected: {request.sid}")
+
+@socketio.on('start_translation')
+def handle_start_translation(data):
+    """Starts the speech recognition and translation process for a client."""
     sid = request.sid
-    logging.info(f"Client connected: {sid}")
+    source_lang = data.get('sourceLanguage', 'en-US')
+    target_lang = data.get('targetLanguage', 'zh-TW')
+    tts_enabled = data.get('ttsEnabled', False)
+
+    logging.info(f"Starting translation for sid {sid}: Source={source_lang}, Target={target_lang}, TTS={tts_enabled}")
+
+    # Configure speech recognition for the specific client
+    client_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+    client_speech_config.speech_recognition_language = source_lang
     
     push_stream = speechsdk.audio.PushAudioInputStream()
     audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
-    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=client_speech_config, audio_config=audio_config)
 
-    speech_recognizer.recognizing.connect(lambda evt: handle_interim_recognition(evt.result.text, sid))
-    speech_recognizer.recognized.connect(lambda evt: translate_and_refine(evt.result.text, sid))
-    
-    recognizers[sid] = (speech_recognizer, push_stream)
+    # Store recognizer and settings
+    clients[sid] = {
+        'recognizer': speech_recognizer,
+        'stream': push_stream,
+        'source_lang': source_lang,
+        'target_lang': target_lang,
+        'tts_enabled': tts_enabled
+    }
+
+    # Connect callbacks
+    speech_recognizer.recognizing.connect(lambda evt: socketio.emit('interim_result', {'text': evt.result.text}, room=sid))
+    speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt.result.text, sid))
     
     speech_recognizer.start_continuous_recognition()
+
 
 @socketio.on('audio_data')
 def handle_audio_data(data):
     """Handles incoming audio data from a client."""
     sid = request.sid
-    if sid in recognizers:
-        _, push_stream = recognizers[sid]
-        push_stream.write(data)
+    if sid in clients:
+        clients[sid]['stream'].write(data)
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handles a client disconnection."""
     sid = request.sid
     logging.info(f"Client disconnected: {sid}")
-    if sid in recognizers:
-        speech_recognizer, push_stream = recognizers.pop(sid)
-        push_stream.close()
-        speech_recognizer.stop_continuous_recognition()
+    if sid in clients:
+        client_info = clients.pop(sid)
+        client_info['stream'].close()
+        client_info['recognizer'].stop_continuous_recognition()
 
 if __name__ == '__main__':
     logging.info("Starting Flask-SocketIO server.")
-    # For development, run directly. For production, use a proper WSGI server like Gunicorn.
     socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True)

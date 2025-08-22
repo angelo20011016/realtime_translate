@@ -21,12 +21,81 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             width: 90%;
-            max-width: 600px;
+            max-width: 700px;
             text-align: center;
         }
         h1 {
             font-size: 1.5rem;
             color: #1c1e21;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 1.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .control-group label {
+            font-size: 0.9rem;
+            color: #606770;
+            margin-bottom: 0.3rem;
+        }
+        .control-group select {
+            padding: 0.5rem;
+            border-radius: 6px;
+            border: 1px solid #dddfe2;
+            font-size: 1rem;
+        }
+        .tts-switch {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .tts-switch .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        .tts-switch .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 28px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px);
         }
         #recordButton {
             padding: 0.8rem 1.5rem;
@@ -37,6 +106,7 @@
             border-radius: 6px;
             cursor: pointer;
             transition: background-color 0.3s;
+            margin-top: 1rem;
         }
         #recordButton.recording {
             background-color: #dc3545;
@@ -49,12 +119,18 @@
             font-size: 0.9rem;
             color: #606770;
         }
+        .text-boxes {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
         .text-container {
-            margin-top: 2rem;
+            flex: 1;
             text-align: left;
             padding: 1rem;
             border: 1px solid #dddfe2;
             border-radius: 6px;
+            background-color: #f9f9f9;
         }
         .text-container h2 {
             font-size: 1.1rem;
@@ -64,7 +140,7 @@
             margin-top: 0;
         }
         #originalText, #translatedText {
-            min-height: 50px;
+            min-height: 80px;
             color: #1c1e21;
             font-size: 1rem;
             line-height: 1.5;
@@ -74,17 +150,48 @@
 <body>
     <div class="container">
         <h1>Real-time Speech Translator</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="sourceLanguage">Source Language</label>
+                <select id="sourceLanguage">
+                    <option value="en-US">English</option>
+                    <option value="zh-TW">Chinese (Traditional)</option>
+                    <option value="ja-JP">Japanese</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="targetLanguage">Target Language</label>
+                <select id="targetLanguage">
+                    <option value="zh-TW">Chinese (Traditional)</option>
+                    <option value="en-US">English</option>
+                    <option value="ja-JP">Japanese</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Enable TTS</label>
+                <div class="tts-switch">
+                    <label class="switch">
+                        <input type="checkbox" id="ttsToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
         <button id="recordButton">Start Recording</button>
         <div id="status" class="status">Click "Start Recording" and begin speaking.</div>
         
-        <div class="text-container">
-            <h2>Original (English)</h2>
-            <div id="originalText"></div>
-        </div>
-        
-        <div class="text-container">
-            <h2>Translation (Traditional Chinese)</h2>
-            <div id="translatedText"></div>
+        <div class="text-boxes">
+            <div class="text-container">
+                <h2 id="original-text-label">Original Text</h2>
+                <div id="originalText"></div>
+            </div>
+            
+            <div class="text-container">
+                <h2 id="translated-text-label">Translated Text</h2>
+                <div id="translatedText"></div>
+            </div>
         </div>
     </div>
 
