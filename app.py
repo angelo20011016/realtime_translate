@@ -21,7 +21,7 @@ socketio = SocketIO(app)
 try:
     gemini_api_key = os.environ["GEMINI_API_KEY"]
     genai.configure(api_key=gemini_api_key)
-    model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+    model = genai.GenerativeModel(model_name="gemini-2.5-flash-lite")
 except KeyError:
     raise RuntimeError("GEMINI_API_KEY not found in .env file. Please add it.")
 
@@ -86,20 +86,32 @@ def synthesize_speech(text, lang_code, sid):
         logging.error(f"Error during speech synthesis for sid {sid}: {e}")
 
 
-def handle_final_recognition(text, sid):
+def handle_final_recognition(evt, sid):
     """Handles final recognition results, translates, and optionally synthesizes speech."""
-    if not text:
+    logging.info(f"Recognized event reason for sid {sid}: {evt.result.reason}")
+    text = evt.result.text
+    if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        if not text:
+            #logging.info(f"Received empty recognized text for sid {sid}. Skipping.")
+            return
+    elif evt.result.reason == speechsdk.ResultReason.NoMatch:
+        logging.info(f"No speech could be recognized for sid {sid}.")
         return
-        
+    elif evt.result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = evt.result.cancellation_details
+        logging.error(f"Recognition canceled for sid {sid}: Reason={cancellation_details.reason}")
+        if cancellation_details.reason == speechsdk.CancellationReason.Error:
+            logging.error(f"Error details for sid {sid}: {cancellation_details.error_details}")
+        return
+
     client_info = clients.get(sid)
     if not client_info:
         logging.warning(f"Could not find client info for sid {sid}")
         return
 
-    logging.info(f"Final recognized text for sid {sid}: '{text}'")
-    
     target_lang = client_info['target_lang']
     tts_enabled = client_info['tts_enabled']
+
 
     try:
         prompt = get_translation_prompt(text, target_lang)
@@ -110,10 +122,7 @@ def handle_final_recognition(text, sid):
         socketio.emit('final_result', {
             "original": text,
             "refined": refined_text,
-            "timings": {
-                "speech_recognition": f"{speech_duration_seconds:.2f}",
-                "translation": f"{translation_duration:.2f}"
-            }
+            "timings": {}
         }, room=sid)
 
         if tts_enabled:
@@ -162,8 +171,11 @@ def handle_start_translation(data):
     }
 
     # Connect callbacks
-    speech_recognizer.recognizing.connect(lambda evt: socketio.emit('interim_result', {'text': evt.result.text}, room=sid))
-    speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt.result.text, sid))
+    speech_recognizer.recognizing.connect(lambda evt: (
+        socketio.emit('interim_result', {'text': evt.result.text}, room=sid),
+        logging.info(f"Recognizing event for sid {sid}: {evt.result.text}")
+    ))
+    speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
     
     speech_recognizer.start_continuous_recognition()
 
@@ -173,7 +185,12 @@ def handle_audio_data(data):
     """Handles incoming audio data from a client."""
     sid = request.sid
     if sid in clients:
-        clients[sid]['stream'].write(data)
+        #logging.info(f"Received audio data for sid {sid}, size: {len(data)} bytes")
+        try:
+            clients[sid]['stream'].write(data)
+            #logging.info(f"Successfully wrote {len(data)} bytes to stream for sid {sid}.")
+        except Exception as e:
+            logging.error(f"Error writing to speech stream for sid {sid}: {e}")
 
 @socketio.on('disconnect')
 def handle_disconnect():

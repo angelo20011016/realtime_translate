@@ -1,8 +1,7 @@
 venv/
 __pycache__/
 .git/
-.gitignore
 .env
+.dockerignore
 *.pyc
 *.log
-requirements copy.txt
