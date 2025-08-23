@@ -3,6 +3,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const statusDiv = document.getElementById("status");
     const originalTextDiv = document.getElementById("originalText");
     const translatedTextDiv = document.getElementById("translatedText");
+    const sourceLanguageSelect = document.getElementById("sourceLanguage");
+    const targetLanguageSelect = document.getElementById("targetLanguage");
+    const ttsToggle = document.getElementById("ttsToggle");
+    const originalTextLabel = document.getElementById("original-text-label");
+    const translatedTextLabel = document.getElementById("translated-text-label");
 
     let isRecording = false;
     let socket;
@@ -20,6 +25,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    function updateLanguageLabels() {
+        const sourceLangText = sourceLanguageSelect.options[sourceLanguageSelect.selectedIndex].text;
+        const targetLangText = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
+        originalTextLabel.textContent = `Original (${sourceLangText})`;
+        translatedTextLabel.textContent = `Translation (${targetLangText})`;
+    }
+
+    sourceLanguageSelect.addEventListener("change", updateLanguageLabels);
+    targetLanguageSelect.addEventListener("change", updateLanguageLabels);
+
     function startRecording() {
         isRecording = true;
         recordButton.textContent = "Stop Recording";
@@ -27,11 +42,21 @@ document.addEventListener("DOMContentLoaded", () => {
         statusDiv.textContent = "Connecting to server...";
         originalTextDiv.textContent = "";
         translatedTextDiv.textContent = "";
+        updateLanguageLabels();
 
         socket = io();
 
         socket.on('connect', () => {
             statusDiv.textContent = "Connected. Start speaking...";
+            console.log("Socket connected, emitting start_translation");
+
+            // Send settings to the server
+            socket.emit('start_translation', {
+                sourceLanguage: sourceLanguageSelect.value,
+                targetLanguage: targetLanguageSelect.value,
+                ttsEnabled: ttsToggle.checked
+            });
+
             navigator.mediaDevices.getUserMedia({ audio: true, video: false })
                 .then(stream => {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -67,13 +92,24 @@ document.addEventListener("DOMContentLoaded", () => {
             translatedTextDiv.textContent = data.refined;
         });
 
+        socket.on('audio_synthesis_result', (data) => {
+            const audioBlob = new Blob([data.audio], { type: 'audio/mpeg' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+        });
+
         socket.on('translation_error', (data) => {
             console.error("Translation error:", data.error);
             statusDiv.textContent = `Error: ${data.error}`;
         });
 
         socket.on('disconnect', () => stopRecording());
-        socket.on('connect_error', () => stopRecording());
+        socket.on('connect_error', (error) => {
+            console.error('Connection Error:', error);
+            statusDiv.textContent = 'Connection failed. Please try again.';
+            stopRecording();
+        });
     }
 
     function stopRecording() {
@@ -122,4 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         return buffer;
     }
+
+    // Initialize labels on page load
+    updateLanguageLabels();
 });
