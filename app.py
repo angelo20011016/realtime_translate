@@ -185,10 +185,8 @@ def handle_audio_data(data):
     """Handles incoming audio data from a client."""
     sid = request.sid
     if sid in clients:
-        #logging.info(f"Received audio data for sid {sid}, size: {len(data)} bytes")
         try:
             clients[sid]['stream'].write(data)
-            #logging.info(f"Successfully wrote {len(data)} bytes to stream for sid {sid}.")
         except Exception as e:
             logging.error(f"Error writing to speech stream for sid {sid}: {e}")
 
