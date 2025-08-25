@@ -167,7 +167,8 @@ def handle_start_translation(data):
         'stream': push_stream,
         'source_lang': source_lang,
         'target_lang': target_lang,
-        'tts_enabled': tts_enabled
+        'tts_enabled': tts_enabled,
+        'speech_config': client_speech_config
     }
 
     # Connect callbacks
@@ -178,6 +179,60 @@ def handle_start_translation(data):
     speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
     
     speech_recognizer.start_continuous_recognition()
+
+
+@socketio.on('settings_changed')
+def handle_settings_changed(data):
+    """Handles changes in language or TTS settings from the client."""
+    sid = request.sid
+    if sid in clients:
+        client_info = clients[sid]
+        
+        # Get new settings, keeping existing ones if not provided
+        source_lang = data.get('sourceLanguage', client_info['source_lang'])
+        target_lang = data.get('targetLanguage', client_info['target_lang'])
+        tts_enabled = data.get('ttsEnabled', client_info['tts_enabled'])
+
+        # Log the change
+        logging.info(f"Updating settings for sid {sid}: Source={source_lang}, Target={target_lang}, TTS={tts_enabled}")
+
+        # Update the client's settings
+        client_info['source_lang'] = source_lang
+        client_info['target_lang'] = target_lang
+        client_info['tts_enabled'] = tts_enabled
+        
+        # Update the speech recognizer's language
+        if client_info['speech_config'].speech_recognition_language != source_lang:
+            logging.info(f"Language changed for sid {sid}. Recreating recognizer.")
+            
+            # Stop the old recognizer
+            client_info['recognizer'].stop_continuous_recognition()
+
+            # Create a new recognizer with the updated language
+            new_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+            new_speech_config.speech_recognition_language = source_lang
+            
+            new_recognizer = speechsdk.SpeechRecognizer(
+                speech_config=new_speech_config, 
+                audio_config=client_info['recognizer'].audio_config
+            )
+
+            # Connect new callbacks
+            new_recognizer.recognizing.connect(lambda evt: (
+                socketio.emit('interim_result', {'text': evt.result.text}, room=sid),
+                logging.info(f"Recognizing event for sid {sid}: {evt.result.text}")
+            ))
+            new_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
+            
+            # Start the new recognizer
+            new_recognizer.start_continuous_recognition()
+            
+            # Update client info with the new recognizer and config
+            client_info['recognizer'] = new_recognizer
+            client_info['speech_config'] = new_speech_config
+        
+    else:
+        logging.warning(f"Received settings_changed for unknown sid: {sid}")
 
 
 @socketio.on('audio_data')

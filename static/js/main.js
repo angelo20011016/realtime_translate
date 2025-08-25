@@ -158,6 +158,21 @@ document.addEventListener("DOMContentLoaded", () => {
         // if (socket && socket.connected) socket.disconnect();
     }
 
+    function handleSettingsChange() {
+        if (socket.connected) {
+            console.log("Settings changed, emitting to server");
+            socket.emit('settings_changed', {
+                sourceLanguage: sourceLanguageSelect.value,
+                targetLanguage: targetLanguageSelect.value,
+                ttsEnabled: ttsToggle.checked
+            });
+        }
+    }
+
+    sourceLanguageSelect.addEventListener('change', handleSettingsChange);
+    targetLanguageSelect.addEventListener('change', handleSettingsChange);
+    ttsToggle.addEventListener('change', handleSettingsChange);
+
     function downsample(buffer, fromSampleRate, toSampleRate) {
         if (fromSampleRate === toSampleRate) {
             return buffer;
