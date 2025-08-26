@@ -168,7 +168,8 @@ def handle_start_translation(data):
         'source_lang': source_lang,
         'target_lang': target_lang,
         'tts_enabled': tts_enabled,
-        'speech_config': client_speech_config
+        'speech_config': client_speech_config,
+        'audio_config': audio_config
     }
 
     # Connect callbacks
@@ -214,7 +215,7 @@ def handle_settings_changed(data):
             
             new_recognizer = speechsdk.SpeechRecognizer(
                 speech_config=new_speech_config, 
-                audio_config=client_info['recognizer'].audio_config
+                audio_config=client_info['audio_config']
             )
 
             # Connect new callbacks
@@ -257,4 +258,5 @@ def handle_disconnect():
 
 if __name__ == '__main__':
     logging.info("Starting Flask-SocketIO server.")
-    socketio.run(app, host='0.0.0.0', port=5002, allow_unsafe_werkzeug=True)
+    port = int(os.environ.get('PORT', 5002))
+    socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
