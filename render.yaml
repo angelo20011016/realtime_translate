@@ -1,0 +1,39 @@
+# render.yaml - Infrastructure as Code for Render
+#
+# This file tells Render how to build and deploy your application.
+# Commit this file to your repository's root directory.
+
+services:
+  - type: web
+    name: happywecan-app
+    runtime: docker
+    plan: free # Specifies the free instance type
+
+    # --- Build Configuration ---
+    # Path to the Dockerfile, relative to the repository root.
+    dockerfilePath: ./realtime_translate/Dockerfile
+
+    # --- Service Configuration ---
+    # The command to start your application.
+    # It uses the $PORT environment variable provided by Render.
+    startCommand: >
+      bash -c "PYTHONPATH=. gunicorn
+      --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker
+      -b 0.0.0.0:$PORT
+      app:app"
+
+    # --- Environment Variables ---
+    # These are your secret keys. We define them here but you will
+    # provide the actual values securely in the Render dashboard.
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false # Set to false to manage the value in the dashboard
+      - key: AZURE_SPEECH_KEY
+        sync: false
+      - key: AZURE_SPEECH_REGION
+        sync: false
+
+    # --- Custom Domain ---
+    # Render will automatically manage the Let's Encrypt SSL certificate for this domain.
+    customDomains:
+      - name: happywecan.com
