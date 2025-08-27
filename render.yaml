@@ -10,8 +10,10 @@ services:
     plan: free # Specifies the free instance type
 
     # --- Build Configuration ---
-    # Path to the Dockerfile, relative to the repository root.
-    dockerfilePath: ./realtime_translate/Dockerfile
+    # Set the build context to the subdirectory where the Dockerfile is located.
+    dockerContext: ./realtime_translate
+    # The path to the Dockerfile, now relative to the dockerContext.
+    dockerfilePath: ./Dockerfile
 
     # --- Service Configuration ---
     # The command to start your application.
