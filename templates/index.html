@@ -5,58 +5,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-time Translator</title>
     <style>
+        /* Global Dark Theme */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f0f2f5;
-            color: #1c1e21;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a2e; /* Dark background */
+            color: #e0e0e0; /* Light text */
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh; /* Use min-height for full viewport */
             margin: 0;
+            overflow: hidden; /* Hide scrollbar if content overflows slightly */
         }
-        .container {
-            background-color: #fff;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            width: 90%;
-            max-width: 700px;
-            text-align: center;
-        }
-        h1 {
-            font-size: 1.5rem;
-            color: #1c1e21;
-        }
-        .controls {
+
+        /* Main Container for Two Columns */
+        .main-wrapper {
             display: flex;
-            justify-content: space-around;
-            align-items: center;
-            margin-top: 1.5rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-            gap: 1rem;
+            width: 95%;
+            max-width: 1200px; /* Wider container */
+            height: 90vh; /* Fixed height for the main content area */
+            background-color: #16213e; /* Slightly lighter dark for main area */
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), 0 0 40px rgba(138, 43, 226, 0.2); /* Subtle neon glow */
+            overflow: hidden; /* Hide scrollbars within the main wrapper */
+        }
+
+        /* Left Column: Settings */
+        .settings-column {
+            flex: 0 0 300px; /* Fixed width for settings */
+            background-color: #0f3460; /* Darker blue for settings */
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-right: 1px solid rgba(0, 255, 255, 0.2); /* Neon border */
+            position: relative;
+            overflow-y: auto; /* Scroll for settings if needed */
+        }
+        .settings-column h1 {
+            font-size: 1.8rem;
+            color: #00ffff; /* Neon cyan */
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
         }
         .control-group {
             display: flex;
             flex-direction: column;
             align-items: flex-start;
+            width: 100%;
         }
         .control-group label {
-            font-size: 0.9rem;
-            color: #606770;
-            margin-bottom: 0.3rem;
+            font-size: 0.95rem;
+            color: #a0a0a0;
+            margin-bottom: 8px;
         }
-        .control-group select {
-            padding: 0.5rem;
-            border-radius: 6px;
-            border: 1px solid #dddfe2;
+        .control-group select,
+        .control-group input[type="text"] { /* Added for potential text inputs */
+            width: calc(100% - 20px); /* Adjust width for padding */
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #3e4451;
+            background-color: #2c3347;
+            color: #e0e0e0;
             font-size: 1rem;
+            appearance: none; /* Remove default select arrow */
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23e0e0e0%22%20d%3D%22M287%2C114.7L146.2%2C255.5L5.4%2C114.7c-7.5-7.5-7.5-19.8%2C0-27.3s19.8-7.5%2C27.3%2C0l113.5%2C113.5l113.5-113.5c7.5-7.5%2C19.8-7.5%2C27.3%2C0S294.5%2C107.2%2C287%2C114.7z%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 12px;
         }
         .tts-switch {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 10px;
         }
         .tts-switch .switch {
             position: relative;
@@ -76,7 +98,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: #ccc;
+            background-color: #555;
             transition: .4s;
             border-radius: 28px;
         }
@@ -92,66 +114,107 @@
             border-radius: 50%;
         }
         input:checked + .slider {
-            background-color: #2196F3;
+            background-color: #00ffff; /* Neon cyan */
+            box-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff;
         }
         input:checked + .slider:before {
             transform: translateX(22px);
         }
         #recordButton {
-            padding: 0.8rem 1.5rem;
-            font-size: 1rem;
+            width: 100%;
+            padding: 12px 20px;
+            font-size: 1.1rem;
             color: #fff;
-            background-color: #007bff;
+            background-color: #8a2be2; /* Neon purple */
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            transition: background-color 0.3s;
-            margin-top: 1rem;
+            transition: background-color 0.3s, box-shadow 0.3s;
+            margin-top: auto; /* Push button to bottom */
+            box-shadow: 0 0 8px rgba(138, 43, 226, 0.7);
         }
         #recordButton.recording {
-            background-color: #dc3545;
+            background-color: #ff007f; /* Neon pink/red */
+            box-shadow: 0 0 8px rgba(255, 0, 127, 0.7);
         }
         #recordButton:hover {
             opacity: 0.9;
+            box-shadow: 0 0 12px rgba(138, 43, 226, 1);
         }
         .status {
-            margin-top: 1rem;
             font-size: 0.9rem;
-            color: #606770;
+            color: #a0a0a0;
+            text-align: center;
+            margin-top: 10px;
         }
-        .text-boxes {
+
+        /* Right Column: Conversation */
+        .conversation-column {
+            flex: 1; /* Takes remaining space */
+            padding: 25px;
             display: flex;
-            gap: 1rem;
-            margin-top: 1.5rem;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto; /* Scroll for conversation */
         }
-        .text-container {
-            flex: 1;
-            text-align: left;
-            padding: 1rem;
-            border: 1px solid #dddfe2;
-            border-radius: 6px;
-            background-color: #f9f9f9;
+        .conversation-column h1 {
+            font-size: 1.8rem;
+            color: #00ffff; /* Neon cyan */
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
         }
-        .text-container h2 {
+        .text-display-area {
+            background-color: #1a1a2e; /* Darker background for text boxes */
+            border: 1px solid rgba(0, 255, 255, 0.2); /* Neon border */
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 100px;
+            overflow-y: auto;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #e0e0e0;
+            box-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+        }
+        .text-display-area h2 {
             font-size: 1.1rem;
-            color: #1c1e21;
-            border-bottom: 1px solid #dddfe2;
-            padding-bottom: 0.5rem;
+            color: #8a2be2; /* Neon purple */
+            border-bottom: 1px solid rgba(138, 43, 226, 0.3);
+            padding-bottom: 8px;
             margin-top: 0;
+            margin-bottom: 15px;
         }
         #originalText, #translatedText {
-            min-height: 80px;
-            color: #1c1e21;
-            font-size: 1rem;
-            line-height: 1.5;
+            color: #e0e0e0; /* Light text */
+        }
+        .conversation-entry {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+        }
+        .conversation-entry:last-child {
+            border-bottom: none;
+        }
+        .conversation-entry .original-text {
+            color: #00ffff; /* Neon cyan for original */
+            font-weight: bold;
+        }
+        .conversation-entry .translated-text {
+            color: #ff007f; /* Neon pink for translated */
+            margin-top: 5px;
+        }
+        .interim-text {
+            color: #a0a0a0; /* Lighter grey for interim */
+            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Real-time Speech Translator</h1>
+    <div class="main-wrapper">
+        <!-- Left Column: Settings -->
+        <div class="settings-column">
+            <h1>Settings</h1>
 
-        <div class="controls">
             <div class="control-group">
                 <label for="sourceLanguage">Source Language</label>
                 <select id="sourceLanguage">
@@ -177,20 +240,17 @@
                     </label>
                 </div>
             </div>
+
+            <button id="recordButton">Start Recording</button>
+            <div id="status" class="status">Click "Start Recording" and begin speaking.</div>
         </div>
 
-        <button id="recordButton">Start Recording</button>
-        <div id="status" class="status">Click "Start Recording" and begin speaking.</div>
-        
-        <div class="text-boxes">
-            <div class="text-container">
-                <h2 id="original-text-label">Original Text</h2>
-                <div id="originalText"></div>
-            </div>
-            
-            <div class="text-container">
-                <h2 id="translated-text-label">Translated Text</h2>
-                <div id="translatedText"></div>
+        <!-- Right Column: Conversation -->
+        <div class="conversation-column">
+            <h1>Conversation</h1>
+            <div class="text-display-area" id="conversationDisplay">
+                <!-- Conversation entries will be appended here by JS -->
+                <div class="interim-text" id="interimDisplay"></div>
             </div>
         </div>
     </div>

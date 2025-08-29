@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: happywecan-app
+    plan: free
+    runtime: docker
+    startCommand: "bash -c 'PYTHONPATH=. gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker -b 0.0.0.0:$PORT app:app'"
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AZURE_SPEECH_KEY
+        sync: false
+      - key: AZURE_SPEECH_REGION
+        sync: false
+    customDomains:
+      - name: happywecan.com
