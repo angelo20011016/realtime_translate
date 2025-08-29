@@ -1,34 +1,13 @@
+version: '3.8'
+
 services:
   app:
-    build: ./realtime_translate
-    expose:
-      - "8001"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY}
-      - AZURE_SPEECH_REGION=${AZURE_SPEECH_REGION}
-    volumes:
-      - ./realtime_translate:/app
-    command: bash -c "PYTHONPATH=. gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker -b 0.0.0.0:8001 app:app"
-
-  nginx:
-    image: nginx:latest
+    build: .
+    container_name: realtime_translate_app
     ports:
-      - "80:80"
-      - "443:443"
+      - "5002:5002"
+    command: python app.py
+    env_file:
+      - .env
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./data/certbot/conf:/etc/letsencrypt:ro
-      - ./data/certbot/www:/var/www/certbot:ro
-    depends_on:
-      - app
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-
-volumes:
-  certbot_conf:
-  certbot_www:
+      - .:/app

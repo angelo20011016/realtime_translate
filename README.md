@@ -92,3 +92,8 @@ realtime_translator/
 └── templates/
     └── index.html      # The main HTML page
 ```
+
+
+##
+  docker build -t realtime_translate .
+##
