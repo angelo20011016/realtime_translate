@@ -49,16 +49,40 @@ LANGUAGE_NAMES = {
 # Dictionary to hold recognizer and settings for each client
 clients = {}
 
+# --- MODIFIED FUNCTION START ---
 def get_translation_prompt(text, target_lang_code):
-    """Generates a prompt for the Gemini model."""
+    """
+    Generates a prompt for the Gemini model, prioritizing Traditional Chinese (Taiwan).
+    Ensures natural, colloquial, and accurate translation, avoiding non-target dialects/scripts.
+    """
     target_language_name = LANGUAGE_NAMES.get(target_lang_code, "the target language")
-    return (
-        f"You are an expert in oral translation. Your task is to translate the user's input into natural, "
-        f"colloquial {target_language_name}. The user's input might be fragmented or ungrammatical because it's from real-time speech. "
-        f"Refine it and provide a fluent translation. "
-        f"Input: '{text}'\n"
-        f"Please return only the translated sentence, without any explanation or extra text."
-    )
+    
+    # Explicitly define prompt for better control over translation output when target is Traditional Chinese
+    if target_lang_code == "zh-TW":
+        prompt = (
+            f"You are an expert translator specializing in Taiwanese Mandarin (Traditional Chinese).\n"
+            f"Your task is to translate the following spoken input into natural, colloquial, and idiomatic "
+            f"Taiwanese Mandarin (Traditional Chinese).\n"
+            f"The input may be fragmented, contain pauses, or have ungrammatical phrasing due to real-time speech.\n"
+            f"Your goal is to produce a fluent and contextually accurate translation. Avoid using Simplified Chinese characters, "
+            f"Cantonese colloquialisms, or any overly formal language.\n\n"
+            f"Input speech: '{text}'\n\n"
+            f"Please provide ONLY the translated sentence in Traditional Chinese. Do not include any explanations, "
+            f"notes, or introductory phrases like 'Here is the translation:'.\n"
+            f"Translated sentence:"
+        )
+    else: # General prompt for other languages (English, Japanese, etc.)
+        prompt = (
+            f"You are an expert in oral translation. Your task is to translate the user's input into natural, "
+            f"colloquial {target_language_name}. The user's input might be fragmented or ungrammatical because it's from real-time speech. "
+            f"Refine it and provide a fluent translation. "
+            f"Input: '{text}'\n"
+            f"Please return only the translated sentence, without any explanation or extra text."
+        )
+    
+    return prompt
+# --- MODIFIED FUNCTION END ---
+
 
 def synthesize_speech(text, lang_code, sid):
     """Synthesizes text to speech and sends it to the client."""
