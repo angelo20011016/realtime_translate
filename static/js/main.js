@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+    // --- DOM Elements ---
     const recordButton = document.getElementById("recordButton");
     const statusDiv = document.getElementById("status");
     const sourceLanguageSelect = document.getElementById("sourceLanguage");
@@ -8,7 +9,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const conversationDisplay = document.getElementById("conversationDisplay");
     const interimDisplay = document.getElementById("interimDisplay");
     const vuMeterLevel = document.getElementById('vu-meter-level');
+    const settingsSidebar = document.getElementById('settings-sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
 
+    // --- State Variables ---
     let isRecording = false;
     let socket;
     let audioContext;
@@ -20,11 +25,21 @@ document.addEventListener("DOMContentLoaded", () => {
     let animationFrameId;
     const bufferSize = 2048;
     const targetSampleRate = 16000;
-
-    // --- Audio Playback Queue ---
     const audioQueue = [];
     let isPlayingAudio = false;
 
+    // --- Sidebar Logic ---
+    sidebarToggle.addEventListener('click', () => {
+        settingsSidebar.classList.toggle('open');
+        sidebarOverlay.classList.toggle('active');
+    });
+
+    sidebarOverlay.addEventListener('click', () => {
+        settingsSidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+    });
+
+    // --- Core Functions ---
     function setSettingsEnabled(enabled) {
         sourceLanguageSelect.disabled = !enabled;
         targetLanguageSelect.disabled = !enabled;
@@ -142,12 +157,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const audio = new Audio(audioUrl);
         audio.play().catch(e => {
             console.error("Error playing TTS audio:", e);
-            isPlayingAudio = false; // Reset flag on error
+            isPlayingAudio = false;
         });
         audio.onended = () => {
             URL.revokeObjectURL(audioUrl);
             isPlayingAudio = false;
-            playNextInQueue(); // Play next audio in queue
+            playNextInQueue();
         };
     }
 
@@ -195,7 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateVUMeter() {
-        if (!isRecording) {
+        if (!isRecording || !analyser) {
             vuMeterLevel.style.width = '0%';
             return;
         }
@@ -244,6 +259,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (audioContext) audioContext.close();
         mediaStream = null;
         audioContext = null;
+        analyser = null;
     }
 
     function stopRecording() {
@@ -257,7 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
         setSettingsEnabled(true);
 
         stopAudioCapture();
-        audioQueue.length = 0; // Clear audio queue on stop
+        audioQueue.length = 0;
         isPlayingAudio = false;
 
         if (socket && socket.connected) socket.emit('stop_translation');
@@ -270,19 +286,14 @@ document.addEventListener("DOMContentLoaded", () => {
     function handleSettingsChange() {
         if (socket && socket.connected && isRecording) {
             console.log("Settings changed while recording, re-initializing...");
-            // Clear queue and stop current audio if any
-            audioQueue.length = 0;
-            // It might be better to just let the current audio finish or stop it explicitly
-            // For now, we just restart the capture, which will create a new context
             stopAudioCapture();
             startAudioCaptureAndEmitSettings();
         }
     }
 
-    sourceLanguageSelect.addEventListener('change', handleSettingsChange);
-    targetLanguageSelect.addEventListener('change', handleSettingsChange);
-    ttsToggle.addEventListener('change', handleSettingsChange);
-    audioSourceSelect.addEventListener('change', handleSettingsChange);
+    [sourceLanguageSelect, targetLanguageSelect, ttsToggle, audioSourceSelect].forEach(el => {
+        el.addEventListener('change', handleSettingsChange);
+    });
 
     function downsample(buffer, fromSampleRate, toSampleRate) {
         if (fromSampleRate === toSampleRate) return buffer;
