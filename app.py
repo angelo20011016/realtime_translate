@@ -88,11 +88,10 @@ def synthesize_speech(text, lang_code, sid):
 
 def handle_final_recognition(evt, sid):
     """Handles final recognition results, translates, and optionally synthesizes speech."""
-    logging.info(f"Recognized event reason for sid {sid}: {evt.result.reason}")
     text = evt.result.text
+    
     if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
         if not text:
-            #logging.info(f"Received empty recognized text for sid {sid}. Skipping.")
             return
     elif evt.result.reason == speechsdk.ResultReason.NoMatch:
         logging.info(f"No speech could be recognized for sid {sid}.")
@@ -101,7 +100,14 @@ def handle_final_recognition(evt, sid):
         cancellation_details = evt.result.cancellation_details
         logging.error(f"Recognition canceled for sid {sid}: Reason={cancellation_details.reason}")
         if cancellation_details.reason == speechsdk.CancellationReason.Error:
-            logging.error(f"Error details for sid {sid}: {cancellation_details.error_details}")
+            error_details = cancellation_details.error_details
+            logging.error(f"Error details for sid {sid}: {error_details}")
+            error_message = "Speech recognition failed."
+            if "authentication" in error_details.lower() or "subscription" in error_details.lower():
+                error_message = "Azure authentication failed. Check API key or subscription status."
+            elif "websocket" in error_details.lower() or "connection" in error_details.lower():
+                error_message = "Network connection issue with Azure service."
+            socketio.emit('server_error', {"error": error_message}, room=sid)
         return
 
     client_info = clients.get(sid)
@@ -112,7 +118,6 @@ def handle_final_recognition(evt, sid):
     target_lang = client_info['target_lang']
     tts_enabled = client_info['tts_enabled']
 
-
     try:
         prompt = get_translation_prompt(text, target_lang)
         response = model.generate_content(prompt)
@@ -121,8 +126,7 @@ def handle_final_recognition(evt, sid):
         
         socketio.emit('final_result', {
             "original": text,
-            "refined": refined_text,
-            "timings": {}
+            "refined": refined_text
         }, room=sid)
 
         if tts_enabled:
@@ -130,7 +134,8 @@ def handle_final_recognition(evt, sid):
 
     except Exception as e:
         logging.error(f"Gemini API error for sid {sid}: {e}")
-        socketio.emit('translation_error', {"error": "Translation failed."}, room=sid)
+        socketio.emit('server_error', {"error": "Translation failed due to Gemini API error."})
+
 
 
 @app.route('/')
@@ -147,39 +152,42 @@ def handle_connect():
 def handle_start_translation(data):
     """Starts the speech recognition and translation process for a client."""
     sid = request.sid
+    # Clean up any existing recognizer for this session before starting a new one
+    if sid in clients:
+        logging.warning(f"Found existing client session for {sid}. Cleaning up before starting new one.")
+        cleanup_client(sid)
+
     source_lang = data.get('sourceLanguage', 'en-US')
     target_lang = data.get('targetLanguage', 'zh-TW')
     tts_enabled = data.get('ttsEnabled', False)
 
     logging.info(f"Starting translation for sid {sid}: Source={source_lang}, Target={target_lang}, TTS={tts_enabled}")
 
-    # Configure speech recognition for the specific client
-    client_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
-    client_speech_config.speech_recognition_language = source_lang
-    
-    push_stream = speechsdk.audio.PushAudioInputStream()
-    audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
-    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=client_speech_config, audio_config=audio_config)
+    try:
+        client_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+        client_speech_config.speech_recognition_language = source_lang
+        
+        push_stream = speechsdk.audio.PushAudioInputStream()
+        audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
+        speech_recognizer = speechsdk.SpeechRecognizer(speech_config=client_speech_config, audio_config=audio_config)
 
-    # Store recognizer and settings
-    clients[sid] = {
-        'recognizer': speech_recognizer,
-        'stream': push_stream,
-        'source_lang': source_lang,
-        'target_lang': target_lang,
-        'tts_enabled': tts_enabled,
-        'speech_config': client_speech_config,
-        'audio_config': audio_config
-    }
+        clients[sid] = {
+            'recognizer': speech_recognizer,
+            'stream': push_stream,
+            'source_lang': source_lang,
+            'target_lang': target_lang,
+            'tts_enabled': tts_enabled
+        }
 
-    # Connect callbacks
-    speech_recognizer.recognizing.connect(lambda evt: (
-        socketio.emit('interim_result', {'text': evt.result.text}, room=sid),
-        logging.info(f"Recognizing event for sid {sid}: {evt.result.text}")
-    ))
-    speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
-    
-    speech_recognizer.start_continuous_recognition()
+        speech_recognizer.recognizing.connect(lambda evt: socketio.emit('interim_result', {'text': evt.result.text}, room=sid))
+        speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
+        speech_recognizer.session_stopped.connect(lambda evt: logging.info(f"Session stopped for sid {sid}."))
+        speech_recognizer.canceled.connect(lambda evt: logging.info(f"Canceled event for sid {sid}."))
+        
+        speech_recognizer.start_continuous_recognition()
+    except Exception as e:
+        logging.error(f"Failed to start recognizer for sid {sid}: {e}")
+        socketio.emit('server_error', {"error": "Failed to initialize speech recognizer."})
 
 
 @socketio.on('settings_changed')
@@ -245,16 +253,32 @@ def handle_audio_data(data):
             clients[sid]['stream'].write(data)
         except Exception as e:
             logging.error(f"Error writing to speech stream for sid {sid}: {e}")
+            cleanup_client(sid)
+            socketio.emit('server_error', {"error": "Audio stream failed. Please restart recording."})
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handles a client disconnection."""
     sid = request.sid
     logging.info(f"Client disconnected: {sid}")
+    cleanup_client(sid)
+
+def cleanup_client(sid):
+    """Stops recognizer and cleans up resources for a client."""
     if sid in clients:
         client_info = clients.pop(sid)
-        client_info['stream'].close()
-        client_info['recognizer'].stop_continuous_recognition()
+        if client_info.get('recognizer'):
+            client_info['recognizer'].stop_continuous_recognition()
+        if client_info.get('stream'):
+            client_info['stream'].close()
+        logging.info(f"Cleaned up resources for sid {sid}")
+
+@socketio.on('stop_translation')
+def handle_stop_translation():
+    """Handles client-initiated stop."""
+    sid = request.sid
+    logging.info(f"Client {sid} requested to stop translation.")
+    cleanup_client(sid)
 
 if __name__ == '__main__':
     logging.info("Starting Flask-SocketIO server.")
