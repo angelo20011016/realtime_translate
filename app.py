@@ -4,7 +4,7 @@ import logging
 import time
 from dotenv import load_dotenv
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import google.generativeai as genai
 import azure.cognitiveservices.speech as speechsdk
 
@@ -48,6 +48,111 @@ LANGUAGE_NAMES = {
 
 # Dictionary to hold recognizer and settings for each client
 clients = {}
+
+# Dictionary to hold information about active rooms
+# Structure: {room_id: {sid: {userId, language, tts_enabled, recognizer, stream}}}
+rooms = {}
+
+# Dictionary to map sid to room_id
+sid_to_room = {}
+
+@socketio.on('join_room')
+def handle_join_room(data):
+    sid = request.sid
+    room_id = data.get('roomId')
+    user_id = data.get('userId')
+    language = data.get('language')
+    tts_enabled = data.get('ttsEnabled', False)
+
+    if not room_id or not user_id or not language:
+        emit('server_error', {'error': 'Room ID, User ID, and Language are required to join a room.'}, room=sid)
+        return
+
+    # Leave any previously joined room
+    if sid in sid_to_room:
+        old_room_id = sid_to_room[sid]
+        if sid in rooms.get(old_room_id, {}):
+            del rooms[old_room_id][sid]
+            if not rooms[old_room_id]: # If room is empty, delete it
+                del rooms[old_room_id]
+        logging.info(f"Client {user_id} (sid: {sid}) left room {old_room_id}.")
+        emit('room_update', {'users': [{'userId': member['userId']} for member in rooms.get(old_room_id, {}).values()]}, room=old_room_id)
+
+
+    join_room(room_id)
+    sid_to_room[sid] = room_id
+
+    if room_id not in rooms:
+        rooms[room_id] = {}
+
+    rooms[room_id][sid] = {
+        'userId': user_id,
+        'language': language,
+        'tts_enabled': tts_enabled,
+        'recognizer': None, # Will be set when translation starts
+        'stream': None      # Will be set when translation starts
+    }
+    logging.info(f"Client {user_id} (sid: {sid}) joined room {room_id} with language {language}.")
+
+    # Broadcast updated user list to all in the room
+    emit('room_update', {'users': [{'userId': member['userId']} for member in rooms[room_id].values()]}, room=room_id)
+    emit('status_update', {'message': f'Joined room {room_id}. Start speaking!'}, room=sid)
+
+
+@socketio.on('start_chat_translation')
+def handle_start_chat_translation(data):
+    sid = request.sid
+    room_id = data.get('roomId')
+    user_id = data.get('userId')
+    language = data.get('language')
+    tts_enabled = data.get('ttsEnabled', False)
+
+    if sid not in rooms.get(room_id, {}):
+        emit('server_error', {'error': 'Not in a valid room.'}, room=sid)
+        return
+
+    # Clean up any existing recognizer for this session before starting a new one
+    if rooms[room_id][sid].get('recognizer'):
+        logging.warning(f"Found existing recognizer for {user_id} (sid: {sid}). Cleaning up.")
+        cleanup_chat_client_recognizer(sid, room_id)
+
+    logging.info(f"Starting chat translation for {user_id} (sid: {sid}): Language={language}, TTS={tts_enabled}")
+
+    try:
+        client_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+        client_speech_config.speech_recognition_language = language
+        
+        push_stream = speechsdk.audio.PushAudioInputStream()
+        audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
+        speech_recognizer = speechsdk.SpeechRecognizer(speech_config=client_speech_config, audio_config=audio_config)
+
+        rooms[room_id][sid].update({
+            'recognizer': speech_recognizer,
+            'stream': push_stream,
+            'language': language, # Update language in case it changed
+            'tts_enabled': tts_enabled
+        })
+
+        speech_recognizer.recognizing.connect(lambda evt: socketio.emit('interim_result', {'text': evt.result.text}, room=sid))
+        speech_recognizer.recognized.connect(lambda evt: handle_chat_final_recognition(evt, sid, room_id, user_id))
+        speech_recognizer.session_stopped.connect(lambda evt: logging.info(f"Chat session stopped for {user_id} (sid: {sid})."))
+        speech_recognizer.canceled.connect(lambda evt: logging.info(f"Chat canceled event for {user_id} (sid: {sid})."))
+        
+        speech_recognizer.start_continuous_recognition()
+    except Exception as e:
+        logging.error(f"Failed to start chat recognizer for {user_id} (sid: {sid}): {e}")
+        emit('server_error', {'error': 'Failed to initialize speech recognizer for chat.'}, room=sid)
+
+def cleanup_chat_client_recognizer(sid, room_id):
+    if room_id in rooms and sid in rooms[room_id]:
+        client_info = rooms[room_id][sid]
+        if client_info.get('recognizer'):
+            client_info['recognizer'].stop_continuous_recognition()
+            client_info['recognizer'] = None
+        if client_info.get('stream'):
+            client_info['stream'].close()
+            client_info['stream'] = None
+        logging.info(f"Cleaned up chat recognizer for sid {sid} in room {room_id}")
 
 # --- MODIFIED FUNCTION START ---
 def get_translation_prompt(text, target_lang_code):
@@ -160,17 +265,95 @@ def handle_final_recognition(evt, sid):
         logging.error(f"Gemini API error for sid {sid}: {e}")
         socketio.emit('server_error', {"error": "Translation failed due to Gemini API error."})
 
+def handle_chat_final_recognition(evt, sid, room_id, sender_user_id):
+    """Handles final recognition results for chat, translates, and broadcasts."""
+    text = evt.result.text
+    
+    if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        if not text:
+            return
+    elif evt.result.reason == speechsdk.ResultReason.NoMatch:
+        logging.info(f"No speech could be recognized for {sender_user_id} (sid: {sid}) in room {room_id}.")
+        return
+    elif evt.result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = evt.result.cancellation_details
+        logging.error(f"Chat recognition canceled for {sender_user_id} (sid: {sid}): Reason={cancellation_details.reason}")
+        if cancellation_details.reason == speechsdk.CancellationReason.Error:
+            error_details = cancellation_details.error_details
+            logging.error(f"Error details for {sender_user_id} (sid: {sid}): {error_details}")
+            emit('server_error', {"error": "Speech recognition failed in chat."}, room=sid)
+        return
+
+    logging.info(f"Recognized speech from {sender_user_id} (sid: {sid}) in room {room_id}: '{text}'")
+
+    if room_id not in rooms:
+        logging.warning(f"Room {room_id} not found for sid {sid}.")
+        return
+
+    # Iterate through all members in the room
+    for recipient_sid, recipient_info in rooms[room_id].items():
+        recipient_lang = recipient_info['language']
+        recipient_tts_enabled = recipient_info['tts_enabled']
+
+        translated_text = text # Default to original if no translation needed or fails
+
+        # Translate for other users or if the sender's language is different from recipient's
+        if recipient_lang != rooms[room_id][sid]['language']:
+            try:
+                prompt = get_translation_prompt(text, recipient_lang)
+                response = model.generate_content(prompt)
+                translated_text = response.text.strip()
+                logging.info(f"Translated for {recipient_info['userId']} (sid: {recipient_sid}): '{translated_text}'")
+            except Exception as e:
+                logging.error(f"Gemini API error translating for {recipient_info['userId']} (sid: {recipient_sid}): {e}")
+                translated_text = f"Translation error: {text}" # Fallback to original or error message
+
+        audio_data = None
+        if recipient_tts_enabled:
+            try:
+                voice_name = LANGUAGE_VOICES.get(recipient_lang)
+                if voice_name:
+                    speech_config.speech_synthesis_voice_name = voice_name
+                    result = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None).speak_text_async(translated_text).get()
+                    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                        audio_data = result.audio_data
+                    else:
+                        logging.error(f"TTS failed for {recipient_info['userId']} (sid: {recipient_sid}): {result.cancellation_details.reason}")
+                else:
+                    logging.warning(f"No voice configured for language {recipient_lang} for sid {recipient_sid}")
+            except Exception as e:
+                logging.error(f"Error during TTS for {recipient_info['userId']} (sid: {recipient_sid}): {e}")
+
+        # Emit chat message to each recipient
+        socketio.emit('chat_message', {
+            "senderId": sender_user_id,
+            "original": text,
+            "translated": translated_text,
+            "audio": audio_data.hex() if audio_data else None # Send audio as hex string
+        }, room=recipient_sid)
 
 
 @app.route('/')
 def index():
-    """Serves the main HTML page."""
-    return render_template('index.html')
+    """Serves the mode selection page."""
+    return render_template('mode_selection.html')
+
+@app.route('/solo')
+def solo_mode():
+    """Serves the solo mode HTML page."""
+    return render_template('solo.html')
+
+@app.route('/chat')
+def chat_mode():
+    """Serves the chat mode HTML page."""
+    return render_template('chat.html')
 
 @socketio.on('connect')
 def handle_connect():
     """Handles a new client connection."""
     logging.info(f"Client connected: {request.sid}")
+    # No specific action here for chat clients, as they will send a 'join_room' event
+    # Solo clients will send 'start_translation'
 
 @socketio.on('start_translation')
 def handle_start_translation(data):
@@ -272,20 +455,54 @@ def handle_settings_changed(data):
 def handle_audio_data(data):
     """Handles incoming audio data from a client."""
     sid = request.sid
-    if sid in clients:
+    
+    # Check if client is in a chat room
+    if sid in sid_to_room:
+        room_id = sid_to_room[sid]
+        if room_id in rooms and sid in rooms[room_id] and rooms[room_id][sid].get('stream'):
+            try:
+                rooms[room_id][sid]['stream'].write(data)
+            except Exception as e:
+                logging.error(f"Error writing to chat speech stream for sid {sid} in room {room_id}: {e}")
+                cleanup_chat_client_recognizer(sid, room_id)
+                socketio.emit('server_error', {"error": "Audio stream failed. Please restart recording."}, room=sid)
+        else:
+            logging.warning(f"Audio data received for sid {sid} not in active chat stream.")
+    # Else, it's a solo client
+    elif sid in clients and clients[sid].get('stream'):
         try:
             clients[sid]['stream'].write(data)
         except Exception as e:
-            logging.error(f"Error writing to speech stream for sid {sid}: {e}")
+            logging.error(f"Error writing to solo speech stream for sid {sid}: {e}")
             cleanup_client(sid)
-            socketio.emit('server_error', {"error": "Audio stream failed. Please restart recording."})
+            socketio.emit('server_error', {"error": "Audio stream failed. Please restart recording."}, room=sid)
+    else:
+        logging.warning(f"Audio data received for unknown or inactive sid: {sid}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handles a client disconnection."""
     sid = request.sid
     logging.info(f"Client disconnected: {sid}")
-    cleanup_client(sid)
+    
+    # Check if client was in a chat room
+    if sid in sid_to_room:
+        room_id = sid_to_room[sid]
+        if room_id in rooms and sid in rooms[room_id]:
+            user_id = rooms[room_id][sid]['userId']
+            cleanup_chat_client_recognizer(sid, room_id) # Clean up recognizer if active
+            del rooms[room_id][sid]
+            del sid_to_room[sid]
+            logging.info(f"Client {user_id} (sid: {sid}) left room {room_id}.")
+            if not rooms[room_id]: # If room is empty, delete it
+                del rooms[room_id]
+                logging.info(f"Room {room_id} is now empty and deleted.")
+            else:
+                # Broadcast updated user list to remaining members
+                emit('room_update', {'users': [{'userId': member['userId']} for member in rooms[room_id].values()]}, room=room_id)
+    # Else, it's a solo client
+    elif sid in clients:
+        cleanup_client(sid)
 
 def cleanup_client(sid):
     """Stops recognizer and cleans up resources for a client."""
@@ -302,7 +519,12 @@ def handle_stop_translation():
     """Handles client-initiated stop."""
     sid = request.sid
     logging.info(f"Client {sid} requested to stop translation.")
-    cleanup_client(sid)
+    
+    if sid in sid_to_room: # It's a chat client
+        room_id = sid_to_room[sid]
+        cleanup_chat_client_recognizer(sid, room_id)
+    elif sid in clients: # It's a solo client
+        cleanup_client(sid)
 
 if __name__ == '__main__':
     logging.info("Starting Flask-SocketIO server.")

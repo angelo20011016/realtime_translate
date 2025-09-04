@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choose Mode</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --dark-bg: #181a2f;
+            --primary-bg: #20243b;
+            --accent-cyan: #4fd1c5;
+            --accent-purple: #9f7aea;
+            --accent-pink: #f6ad55;
+            --text-light: #e2e8f0;
+            --neon-text-shadow: 0 0 8px rgba(79, 209, 197, 0.5);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--text-light);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .mode-selection-container {
+            background-color: var(--primary-bg);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--accent-cyan);
+            text-shadow: var(--neon-text-shadow);
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+        }
+        .mode-button {
+            display: block;
+            width: 80%;
+            margin: 20px auto;
+            padding: 15px 25px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            color: var(--text-light);
+            border: none;
+            cursor: pointer;
+        }
+        .mode-button.solo {
+            background: linear-gradient(to right, var(--accent-purple), var(--accent-pink));
+            box-shadow: 0 0 15px rgba(159, 122, 234, 0.6);
+        }
+        .mode-button.chat {
+            background: linear-gradient(to right, var(--accent-cyan), var(--accent-purple));
+            box-shadow: 0 0 15px rgba(79, 209, 197, 0.6);
+        }
+        .mode-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.7);
+            filter: brightness(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="mode-selection-container">
+        <h1>Choose Your Mode</h1>
+        <a href="/solo" class="mode-button solo">Solo Mode</a>
+        <a href="/chat" class="mode-button chat">Chat Mode</a>
+    </div>
+</body>
+</html>
