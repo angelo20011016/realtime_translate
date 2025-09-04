@@ -198,6 +198,7 @@ def synthesize_speech(text, lang_code, sid):
             return
 
         speech_config.speech_synthesis_voice_name = voice_name
+        speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz128KBitRateMonoMp3)
         # Use a memory stream to hold the synthesized audio
         result = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None).speak_text_async(text).get()
 
@@ -329,7 +330,7 @@ def handle_chat_final_recognition(evt, sid, room_id, sender_user_id):
             "senderId": sender_user_id,
             "original": text,
             "translated": translated_text,
-            "audio": audio_data.hex() if audio_data else None # Send audio as hex string
+            "audio": audio_data if audio_data else None # Send raw bytes
         }, room=recipient_sid)
 
 
