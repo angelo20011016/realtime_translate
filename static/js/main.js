@@ -16,6 +16,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- State Variables ---
     let isRecording = false;
     let captureMode = 'mic'; // 'mic' or 'display'
+    let inactivityTimer = null;
+    let lastAudioTime = 0;
+    const INACTIVITY_TIMEOUT_SECONDS = 60;
     let socket;
     let audioContext;
     let processor;
@@ -78,7 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
     captureSystemButton.textContent = "Capture System Audio";
     captureSystemButton.id = "captureSystemAudioButton";
     captureSystemButton.style.marginTop = "10px";
-    captureSystemButton.style.backgroundColor = "#4CAF50";
+    captureSystemButton.style.backgroundColor = "#007BFF";
     captureSystemButton.style.border = "none";
     captureSystemButton.style.color = "white";
     captureSystemButton.style.padding = "15px 32px";
@@ -156,6 +159,7 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.on('interim_result', (data) => { interimDisplay.textContent = data.text; });
 
         socket.on('final_result', (data) => {
+            lastAudioTime = Date.now(); // Reset inactivity timer on new result
             interimDisplay.textContent = "";
             if (!data.original) return;
 
@@ -291,11 +295,34 @@ document.addEventListener("DOMContentLoaded", () => {
             sumSquares += normalized * normalized;
         }
         const rms = Math.sqrt(sumSquares / dataArray.length);
+        
         const maxLevel = 0.5;
         const level = Math.min(1, rms / maxLevel) * 100;
         vuMeterLevel.style.width = level + '%';
 
         animationFrameId = requestAnimationFrame(updateVUMeter);
+    }
+
+    function showNotification(title, body) {
+        if (Notification.permission === 'granted') {
+            new Notification(title, { body: body });
+        } else {
+            statusDiv.textContent = body;
+        }
+    }
+
+    function checkInactivity() {
+        if (!isRecording) {
+            clearInterval(inactivityTimer);
+            inactivityTimer = null;
+            return;
+        }
+        const inactiveDuration = (Date.now() - lastAudioTime) / 1000;
+        if (inactiveDuration > INACTIVITY_TIMEOUT_SECONDS) {
+            console.log(`Stopping due to inactivity for over ${INACTIVITY_TIMEOUT_SECONDS} seconds.`);
+            stopRecording();
+            showNotification("Recording Auto-Stopped", `Stopped due to ${INACTIVITY_TIMEOUT_SECONDS}s of inactivity.`);
+        }
     }
 
     recordButton.addEventListener("click", () => {
@@ -315,6 +342,11 @@ document.addEventListener("DOMContentLoaded", () => {
         statusDiv.textContent = "Requesting microphone access...";
         interimDisplay.textContent = "Listening...";
         setSettingsEnabled(false);
+
+        lastAudioTime = Date.now();
+        if (inactivityTimer) clearInterval(inactivityTimer);
+        inactivityTimer = setInterval(checkInactivity, 2000);
+
         connectSocket();
     }
 
@@ -332,6 +364,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function stopRecording() {
+        if (inactivityTimer) {
+            clearInterval(inactivityTimer);
+            inactivityTimer = null;
+        }
+
         if (!isRecording) return;
         isRecording = false;
 
@@ -399,4 +436,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initial setup
     setSettingsEnabled(true);
     populateAudioInputDevices();
+    if (Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
 });
