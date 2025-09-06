@@ -1,3 +1,4 @@
+
 from gevent import monkey
 monkey.patch_all()
 import redis
@@ -110,6 +111,24 @@ def handle_join_room(data):
     # Broadcast updated user list to all in the room
     emit('room_update', {'users': [{'userId': member['userId']} for member in rooms[room_id].values()]}, room=room_id)
     emit('status_update', {'message': f'Joined room {room_id}. Start speaking!'}, room=sid)
+
+
+
+# Chat mode: 更新用戶語言/tts 設定
+@socketio.on('update_user_settings')
+def handle_update_user_settings(data):
+    sid = request.sid
+    language = data.get('language')
+    tts_enabled = data.get('ttsEnabled', False)
+    room_id = sid_to_room.get(sid)
+    user_id = None
+    if room_id and room_id in rooms and sid in rooms[room_id]:
+        user_id = rooms[room_id][sid].get('userId')
+        rooms[room_id][sid]['language'] = language
+        rooms[room_id][sid]['tts_enabled'] = tts_enabled
+        logging.info(f"[Chat] User {user_id} in room {room_id} updated settings: language={language}, tts_enabled={tts_enabled}")
+    else:
+        logging.warning(f"[Chat] update_user_settings: sid {sid} not found in any room.")
 
 
 @socketio.on('start_chat_translation')
