@@ -18,6 +18,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- State Variables ---
     let isRecording = false;
+    let inactivityTimer = null;
+    let lastAudioTime = 0;
+    const INACTIVITY_TIMEOUT_SECONDS = 60;
     let socket;
     let audioContext;
     let processor;
@@ -109,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.on('interim_result', (data) => { interimDisplay.textContent = data.text; });
 
         socket.on('chat_message', (data) => {
+            lastAudioTime = Date.now();
             interimDisplay.textContent = "";
             if (!data.original) return;
 
@@ -273,6 +277,27 @@ document.addEventListener("DOMContentLoaded", () => {
         animationFrameId = requestAnimationFrame(updateVUMeter);
     }
 
+    function showNotification(title, body) {
+        if (Notification.permission === 'granted') {
+            new Notification(title, { body: body });
+        } else {
+            statusDiv.textContent = body;
+        }
+    }
+
+    function checkInactivity() {
+        if (!isRecording) {
+            clearInterval(inactivityTimer);
+            inactivityTimer = null;
+            return;
+        }
+        const inactiveDuration = (Date.now() - lastAudioTime) / 1000;
+        if (inactiveDuration > INACTIVITY_TIMEOUT_SECONDS) {
+            stopRecording();
+            showNotification("Recording Auto-Stopped", `Stopped due to ${INACTIVITY_TIMEOUT_SECONDS}s of inactivity.`);
+        }
+    }
+
     recordButton.addEventListener("click", () => {
         if (isRecording) {
             stopRecording();
@@ -291,7 +316,12 @@ document.addEventListener("DOMContentLoaded", () => {
         recordButton.classList.add("recording");
         statusDiv.textContent = "Requesting microphone access...";
         interimDisplay.textContent = "Listening...";
-        setSettingsEnabled(false);
+                setSettingsEnabled(false);
+
+        lastAudioTime = Date.now();
+        if (inactivityTimer) clearInterval(inactivityTimer);
+        inactivityTimer = setInterval(checkInactivity, 2000);
+
         startAudioCaptureAndEmitSettings();
     }
 
@@ -309,6 +339,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function stopRecording() {
+        if (inactivityTimer) {
+            clearInterval(inactivityTimer);
+            inactivityTimer = null;
+        }
         if (!isRecording) return;
         isRecording = false;
 
