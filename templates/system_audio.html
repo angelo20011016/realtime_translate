@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Audio Translator</title>
+    <!-- Google Fonts for a modern, clean look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons (only for sidebar toggle) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        /* --- Color Palette: Comfortable, Modern, with Subtle Accents --- */
+        :root {
+            --dark-bg: #181a2f;
+            --primary-bg: #20243b;
+            --secondary-bg: #151a2a;
+            --accent-cyan: #4fd1c5; /* Soft Cyan/Teal */
+            --accent-purple: #9f7aea; /* Muted Purple */
+            --accent-pink: #f6ad55; /* Warm Coral/Orange */
+            --text-light: #e2e8f0;
+            --text-muted: #a0aec0;
+
+            /* Enhanced Variables for Visual Harmony */
+            --input-bg: #2d3748;
+            --border-color-subtle: rgba(79, 209, 197, 0.2);
+            --focus-glow: rgba(79, 209, 197, 0.3);
+            --button-glow-start: rgba(159, 122, 234, 0.6);
+            --button-glow-active: rgba(246, 173, 85, 0.6);
+            --element-hover-brightness: 1.15;
+            --shadow-soft: rgba(0, 0, 0, 0.3);
+            --neon-text-shadow: 0 0 8px rgba(79, 209, 197, 0.5);
+            --cursor-glow-color: var(--accent-cyan); /* Color for cursor effects */
+        }
+
+        /* --- Font Setup --- */
+        body {
+            font-family: 'Inter', sans-serif; /* Modern Sans-serif for body text */
+        }
+        h1, h2, h3, h4, h5, h6, .title-font {
+            font-family: 'Orbitron', sans-serif; /* Techy font for titles and important headings */
+            font-weight: 600;
+        }
+        .display-font { /* For larger, impactful text if needed */
+             font-family: 'Orbitron', sans-serif;
+             font-weight: 700;
+        }
+
+        /* --- Global Styles --- */
+        body, html {
+            height: 100%;
+            background-color: var(--dark-bg);
+            color: var(--text-light);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+
+        /* --- Layout Wrapper --- */
+        .main-wrapper {
+            display: flex;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* --- Sidebar Styles --- */
+        .settings-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 100%;
+            background-color: var(--secondary-bg);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            border-right: 1px solid var(--border-color-subtle);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+            z-index: 1050;
+            overflow-y: auto;
+            box-shadow: 3px 0 15px var(--shadow-soft);
+        }
+
+        .settings-sidebar.open {
+            transform: translateX(0);
+        }
+
+        .settings-sidebar h1 {
+            font-size: 1.8rem;
+            color: var(--accent-cyan);
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: var(--neon-text-shadow);
+            font-weight: 600;
+        }
+
+        /* --- Control Group Styling --- */
+        .control-group {
+            margin-bottom: 20px;
+        }
+        .control-group label {
+            color: var(--text-muted);
+            font-weight: 500;
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            transition: color 0.25s ease-in-out, text-shadow 0.25s ease-in-out;
+            cursor: pointer;
+        }
+        .control-group label:hover {
+            color: var(--accent-cyan);
+            text-shadow: var(--neon-text-shadow);
+        }
+
+        /* Inputs and Selects - Clean Modern Style */
+        .form-select,
+        .form-control {
+            background-color: var(--input-bg);
+            color: var(--text-light);
+            border: 1px solid var(--input-bg);
+            border-radius: 6px;
+            padding: 10px 15px;
+            font-size: 1rem;
+            transition: border-color 0.25s ease-in-out, box-shadow 0.25s ease-in-out, transform 0.2s ease-in-out;
+            cursor: pointer;
+        }
+
+        .form-select:focus,
+        .form-control:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 0.25rem var(--focus-glow);
+            outline: none;
+            transform: translateY(-1px);
+        }
+        .form-select:hover,
+        .form-control:hover {
+            border-color: var(--accent-cyan);
+            filter: brightness(var(--element-hover-brightness));
+        }
+
+        /* Custom Switch Styling */
+        .form-check-input[type="checkbox"] {
+            background-color: var(--accent-purple);
+            border-color: var(--accent-purple);
+            width: 45px;
+            height: 24px;
+            border-radius: 12px;
+            transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+        }
+        .form-check-input[type="checkbox"]:checked {
+            background-color: var(--accent-pink);
+            border-color: var(--accent-pink);
+        }
+        .form-check-input[type="checkbox"]:focus {
+            box-shadow: 0 0 0 0.25rem var(--focus-glow);
+        }
+        .form-check-label {
+            color: var(--text-light);
+            cursor: pointer;
+            font-size: 1rem;
+            padding-left: 8px;
+            transition: color 0.25s ease-in-out;
+        }
+        .form-check-label:hover {
+            color: var(--accent-cyan);
+        }
+
+        /* VU Meter Styling */
+        .vu-meter-container {
+            margin-top: 20px;
+            position: relative;
+        }
+        #vu-meter {
+            width: 100%;
+            height: 10px;
+            background-color: var(--input-bg);
+            border-radius: 5px;
+            border: 1px solid var(--input-bg);
+            overflow: hidden;
+        }
+        #vu-meter-level {
+            height: 100%;
+            background-color: var(--accent-cyan);
+            transition: width 0.05s linear;
+            box-shadow: 0 0 6px var(--accent-cyan);
+            border-radius: 5px;
+        }
+
+        /* Record Button Styling */
+        #recordButton {
+            background: linear-gradient(to right, var(--accent-purple), var(--accent-pink));
+            box-shadow: 0 0 10px var(--button-glow-start);
+            margin-top: auto;
+            border: none;
+            color: var(--text-light);
+            font-weight: 600;
+            font-size: 1.15rem;
+            padding: 12px 18px;
+            border-radius: 8px;
+            transition: background 0.3s ease-in-out, box-shadow 0.3s ease-in-out, transform 0.2s ease-in-out;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        #recordButton.recording {
+            background: linear-gradient(to right, var(--accent-pink), var(--accent-cyan));
+            box-shadow: 0 0 10px var(--button-glow-active);
+        }
+        #recordButton:hover {
+            box-shadow: 0 0 18px var(--button-glow-start);
+            transform: scale(1.02);
+        }
+        #recordButton.recording:hover {
+            box-shadow: 0 0 18px var(--button-glow-active);
+            transform: scale(1.02);
+        }
+
+        /* Status Message */
+        #status {
+            color: var(--text-muted);
+            min-height: 40px;
+            font-size: 0.9rem;
+            text-align: center;
+            line-height: 1.4;
+            opacity: 0.85;
+        }
+
+        /* --- Main Content Area --- */
+        .content-main {
+            width: 100%;
+            height: 100%;
+            padding: 35px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background-color: var(--primary-bg);
+            transition: margin-left 0.3s ease-in-out;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px var(--shadow-soft);
+        }
+
+        /* Sidebar Toggle Button */
+        #sidebar-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1060;
+            font-size: 1.8rem;
+            color: var(--accent-cyan);
+            background: none;
+            border: none;
+            transition: color 0.25s ease-in-out, transform 0.25s ease-in-out;
+            cursor: pointer;
+            padding: 5px;
+            text-shadow: var(--neon-text-shadow);
+        }
+
+        #sidebar-toggle:hover {
+            color: var(--accent-pink);
+            transform: scale(1.1);
+        }
+
+        /* Main Titles in Content */
+        .content-main h1 {
+            font-size: 2.2rem;
+            color: var(--accent-cyan);
+            text-shadow: var(--neon-text-shadow);
+            margin-bottom: 15px;
+            font-weight: 600;
+            text-align: center;
+            transition: color 0.25s ease-in-out, text-shadow 0.25s ease-in-out;
+            cursor: default;
+        }
+        .content-main h1.mt-3 {
+             margin-top: 25px !important;
+        }
+
+        /* Display Boxes - Interim and Conversation WITH ELECTRIC CURRENT EFFECTS */
+        .interim-display-box,
+        .conversation-history {
+            background-color: var(--primary-bg);
+            border: 1px solid var(--border-color-subtle);
+            border-radius: 8px;
+            padding: 18px;
+            overflow: hidden; /* Crucial for positioning absolute pseudo-elements */
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: var(--text-light);
+            box-shadow: 0 0 10px rgba(79, 209, 197, 0.15);
+            transition: box-shadow 0.3s ease-in-out;
+            position: relative; /* Required for absolute positioning of ::before/::after */
+        }
+        .interim-display-box:hover,
+        .conversation-history:hover {
+            box-shadow: 0 0 15px rgba(79, 209, 197, 0.3);
+        }
+
+        /* --- Electric Current Effects for Dialogue Boxes --- */
+
+        /* Common styles for the current effect */
+        .interim-display-box::before,
+        .conversation-history::before,
+        .interim-display-box::after,
+        .conversation-history::after {
+            content: '';
+            position: absolute;
+            background: radial-gradient(circle, rgba(79, 209, 197, 0.6) 5%, transparent 40%); /* Cyan glow */
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
+            pointer-events: none; /* Allow clicks to pass through */
+            z-index: 0; /* Behind text content */
+        }
+
+        /* Current effect for interim display */
+        .interim-display-box::before {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            top: 10%;
+            left: 15%;
+            transform: scale(0);
+        }
+        .interim-display-box::after {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            top: 70%;
+            right: 10%;
+            transform: scale(0);
+            background: radial-gradient(circle, rgba(246, 173, 85, 0.5) 5%, transparent 40%); /* Coral glow */
+        }
+
+        /* Current effect for conversation history */
+        .conversation-history::before {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            top: 20%;
+            right: 10%;
+            transform: scale(0);
+            background: radial-gradient(circle, rgba(159, 122, 234, 0.5) 5%, transparent 40%); /* Purple glow */
+        }
+        .conversation-history::after {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            top: 60%;
+            left: 10%;
+            transform: scale(0);
+        }
+
+        /* Trigger effect on hover */
+        .interim-display-box:hover::before,
+        .interim-display-box:hover::after,
+        .conversation-history:hover::before,
+        .conversation-history:hover::after {
+            opacity: 1;
+            transform: scale(1.2); /* Scale up effect */
+        }
+        /* Subtle animation on ::before elements when active */
+        .interim-display-box:hover::before {
+            animation: pulse 2s infinite ease-in-out alternate;
+        }
+        .conversation-history:hover::before {
+             animation: pulse-purple 2s infinite ease-in-out alternate;
+        }
+
+
+        /* Text Styling within Display Boxes - interactive */
+        .original-text, .translated-text {
+            font-weight: 600;
+            transition: color 0.25s ease-in-out, text-shadow 0.25s ease-in-out;
+            cursor: default;
+        }
+        .original-text:hover {
+            color: var(--accent-cyan);
+            text-shadow: var(--neon-text-shadow);
+        }
+        .translated-text:hover {
+            color: var(--accent-pink);
+            text-shadow: 0 0 8px rgba(246, 173, 85, 0.5);
+        }
+
+        /* --- Keyframe Animations for Current Effects --- */
+        @keyframes pulse {
+            0% { opacity: 0.6; transform: scale(1.0); filter: blur(5px); }
+            50% { opacity: 1; transform: scale(1.2); filter: blur(8px); }
+            100% { opacity: 0.6; transform: scale(1.0); filter: blur(5px); }
+        }
+        @keyframes pulse-purple {
+            0% { opacity: 0.5; transform: scale(1.0); filter: blur(5px); }
+            50% { opacity: 0.8; transform: scale(1.2); filter: blur(8px); }
+            100% { opacity: 0.5; transform: scale(1.0); filter: blur(5px); }
+        }
+
+
+        /* --- Media Query for Desktop View --- */
+        @media (min-width: 992px) {
+            .settings-sidebar {
+                transform: translateX(0);
+            }
+            .content-main {
+                margin-left: 300px;
+                box-shadow: -2px 0 10px var(--shadow-soft);
+            }
+            #sidebar-toggle {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <!-- Settings Sidebar -->
+        <div id="settings-sidebar" class="settings-sidebar">
+            <h1><a href="/" style="color: inherit; text-decoration: none;">Translator Settings</a></h1>
+
+            <!-- Source Language Control -->
+            <div class="control-group">
+                <label for="sourceLanguage">Input Language</label>
+                <select id="sourceLanguage" class="form-select">
+                    <option value="en-US">English</option>
+                    <option value="zh-TW" selected>Chinese (Traditional)</option>
+                    <option value="ja-JP">Japanese</option>
+                </select>
+            </div>
+
+            <!-- Target Language Control -->
+            <div class="control-group">
+                <label for="targetLanguage">Output Language</label>
+                <select id="targetLanguage" class="form-select">
+                    <option value="zh-TW">Chinese (Traditional)</option>
+                    <option value="en-US" selected>English</option>
+                    <option value="ja-JP">Japanese</option>
+                </select>
+            </div>
+
+            <!-- Text-to-Speech Toggle -->
+            <div class="control-group">
+                <div class="form-check form-switch tts-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="ttsToggle">
+                    <label class="form-check-label" for="ttsToggle">Enable Voice Output</label>
+                </div>
+            </div>
+
+            <!-- VU Meter -->
+            <div class="vu-meter-container">
+                <div id="vu-meter"><div id="vu-meter-level"></div></div>
+            </div>
+
+            <!-- Record Button -->
+            <button id="recordButton" class="btn">Start System Capture</button>
+
+            <!-- Status Message -->
+            <div id="status" class="status mt-2">Ready for input...</div>
+        </div>
+
+        <!-- Sidebar Overlay -->
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+        <!-- Main Content Area -->
+        <main class="content-main">
+            <!-- Sidebar Toggle Button -->
+            <button id="sidebar-toggle"><i class="bi bi-list"></i></button>
+
+            <!-- Main Title -->
+            <h1 class="title-font">Real-time System Audio Translation</h1>
+
+            <!-- Interim Display for real-time transcription -->
+            <div id="interimDisplay" class="interim-display-box">
+                <!-- Real-time transcribed text will appear here -->
+            </div>
+
+            <!-- Conversation History Title -->
+            <h1 class="mt-3 title-font">Conversation Log</h1>
+
+            <!-- Conversation Display for translated history -->
+            <div id="conversationDisplay" class="conversation-history">
+                <!-- Translated conversation will appear here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/static/js/system_audio.js"></script>
+</body>
+</html>

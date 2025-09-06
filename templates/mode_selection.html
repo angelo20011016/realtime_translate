@@ -68,6 +68,10 @@
             background: linear-gradient(to right, var(--accent-cyan), var(--accent-purple));
             box-shadow: 0 0 15px rgba(79, 209, 197, 0.6);
         }
+        .mode-button.system {
+            background: linear-gradient(to right, var(--accent-pink), var(--accent-cyan));
+            box-shadow: 0 0 15px rgba(246, 173, 85, 0.6);
+        }
         .mode-button:hover {
             transform: translateY(-3px);
             box-shadow: 0 5px 25px rgba(0, 0, 0, 0.7);
@@ -78,7 +82,8 @@
 <body>
     <div class="mode-selection-container">
         <h1>Choose Your Mode</h1>
-        <a href="/solo" class="mode-button solo">Solo Mode</a>
+        <a href="/solo" class="mode-button solo">Mic Mode</a>
+        <a href="/system" class="mode-button system">System Audio Mode</a>
         <a href="/chat" class="mode-button chat">Chat Mode</a>
     </div>
 </body>

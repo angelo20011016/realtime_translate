@@ -231,6 +231,11 @@ def synthesize_speech(text, lang_code, sid):
 
 def handle_final_recognition(evt, sid):
     """Handles final recognition results, translates, and optionally synthesizes speech."""
+    # Race condition check: client might have disconnected
+    if sid not in clients:
+        logging.warning(f"Received recognition result for an already disconnected client: {sid}")
+        return
+
     text = evt.result.text
     
     if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
@@ -356,6 +361,11 @@ def index():
 def solo_mode():
     """Serves the solo mode HTML page."""
     return render_template('solo.html')
+
+@app.route('/system')
+def system_mode():
+    """Serves the system audio capture mode HTML page."""
+    return render_template('system_audio.html')
 
 @app.route('/chat')
 def chat_mode():
