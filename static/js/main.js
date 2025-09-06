@@ -15,7 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- State Variables ---
     let isRecording = false;
-    let captureMode = 'mic'; // 'mic' or 'display'
     let inactivityTimer = null;
     let lastAudioTime = 0;
     const INACTIVITY_TIMEOUT_SECONDS = 60;
@@ -76,57 +75,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // --- Create and add System Audio Capture Button ---
-    const captureSystemButton = document.createElement('button');
-    captureSystemButton.textContent = "Capture System Audio";
-    captureSystemButton.id = "captureSystemAudioButton";
-    captureSystemButton.style.marginTop = "10px";
-    captureSystemButton.style.backgroundColor = "#007BFF";
-    captureSystemButton.style.border = "none";
-    captureSystemButton.style.color = "white";
-    captureSystemButton.style.padding = "15px 32px";
-    captureSystemButton.style.textAlign = "center";
-    captureSystemButton.style.textDecoration = "none";
-    captureSystemButton.style.display = "inline-block";
-    captureSystemButton.style.fontSize = "16px";
-    captureSystemButton.style.cursor = "pointer";
-    captureSystemButton.style.borderRadius = "5px";
-    captureSystemButton.style.width = "100%";
-
-    const recordButtonContainer = recordButton.parentNode;
-    recordButtonContainer.style.display = 'flex';
-    recordButtonContainer.style.flexDirection = 'column';
-    recordButtonContainer.style.gap = '10px';
-    
-    recordButton.parentNode.insertBefore(captureSystemButton, recordButton.nextSibling);
-
-    captureSystemButton.addEventListener('click', async () => {
-        if (isRecording) return; 
-
-        captureMode = 'display';
-        startRecording();
-
-        try {
-            const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-            
-            if (displayStream.getAudioTracks().length === 0) {
-                alert("Audio sharing is required. Please try again and check the 'Share audio' box.");
-                stopRecording();
-                return;
-            }
-            
-            displayStream.getVideoTracks().forEach(track => track.stop());
-
-            setupAudioProcessing(displayStream);
-            statusDiv.textContent = "Capturing system audio...";
-
-        } catch (err) {
-            console.error("Error starting system audio capture:", err);
-            statusDiv.textContent = "Capture cancelled or failed.";
-            stopRecording();
-        }
-    });
-
     function connectSocket() {
         if (socket && socket.connected) {
             sendSettings();
@@ -148,7 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.on('interim_result', (data) => { interimDisplay.textContent = data.text; });
 
         socket.on('final_result', (data) => {
-            lastAudioTime = Date.now(); // Reset inactivity timer on new result
+            lastAudioTime = Date.now();
             interimDisplay.textContent = "";
             if (!data.original) return;
 
@@ -200,21 +148,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function sendSettings() {
         if (socket && socket.connected) {
-            console.log("Sending settings to server...");
             socket.emit('settings_changed', {
                 sourceLanguage: sourceLanguageSelect.value,
                 targetLanguage: targetLanguageSelect.value,
                 ttsEnabled: ttsToggle.checked
             });
-        } else {
-            console.log("Socket not connected. Cannot send settings.");
         }
     }
 
     function playNextInQueue() {
-        if (isPlayingAudio || audioQueue.length === 0) {
-            return;
-        }
+        if (isPlayingAudio || audioQueue.length === 0) return;
         isPlayingAudio = true;
         const audioBlob = audioQueue.shift();
         const audioUrl = URL.createObjectURL(audioBlob);
@@ -252,24 +195,15 @@ document.addEventListener("DOMContentLoaded", () => {
         
         updateVUMeter();
         if (socket.connected) {
-            statusDiv.textContent = "Connected. Start to speak or play audio.";
+            statusDiv.textContent = "Connected. Start to speak.";
         }
     }
 
     function startAudioProcessing() {
-        if (captureMode === 'display') {
-            console.log("In display capture mode, skipping microphone setup.");
-            return;
-        }
-
         statusDiv.textContent = "Microphone connected. Connecting to server...";
-        
         const constraints = { audio: { deviceId: { exact: audioSourceSelect.value } }, video: false };
-
         navigator.mediaDevices.getUserMedia(constraints)
-            .then(stream => {
-                setupAudioProcessing(stream);
-            })
+            .then(stream => setupAudioProcessing(stream))
             .catch(err => {
                 console.error("Error getting media stream:", err);
                 statusDiv.textContent = `Mic Error: ${err.message}`;
@@ -316,12 +250,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const inactiveDuration = (Date.now() - lastAudioTime) / 1000;
         if (inactiveDuration > INACTIVITY_TIMEOUT_SECONDS) {
-            console.log(`Stopping due to inactivity for over ${INACTIVITY_TIMEOUT_SECONDS} seconds.`);
             stopRecording();
             showNotification("Recording Auto-Stopped", `Stopped due to ${INACTIVITY_TIMEOUT_SECONDS}s of inactivity.`);
         }
     }
-
 
     recordButton.addEventListener("click", async () => {
         if (isRecording) {
@@ -360,11 +292,9 @@ document.addEventListener("DOMContentLoaded", () => {
             processor.onaudioprocess = null;
         }
         if (analyser) analyser.disconnect();
-        
         if (audioContext && audioContext.state !== 'closed') {
             await audioContext.close();
         }
-
         mediaStream = null;
         audioContext = null;
         analyser = null;
@@ -376,7 +306,6 @@ document.addEventListener("DOMContentLoaded", () => {
             clearInterval(inactivityTimer);
             inactivityTimer = null;
         }
-
         if (!isRecording) return;
         isRecording = false;
 
@@ -431,107 +360,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return buffer;
     }
 
-
-    function startRecording() {
-        if (!socket || !socket.connected) {
-            statusDiv.textContent = "Not connected to server. Please wait.";
-            return;
-        }
-        isRecording = true;
-        recordButton.textContent = "Stop Recording";
-        recordButton.classList.add("recording");
-        captureSystemButton.disabled = true;
-        statusDiv.textContent = "Requesting microphone access...";
-        interimDisplay.textContent = "Listening...";
-        setSettingsEnabled(false);
-
-        lastAudioTime = Date.now();
-        if (inactivityTimer) clearInterval(inactivityTimer);
-        inactivityTimer = setInterval(checkInactivity, 2000);
-
-        startAudioProcessing();
-    }
-
-    function stopAudioCapture() {
-        if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        vuMeterLevel.style.width = '0%';
-        if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
-        if (source) source.disconnect();
-        if (processor) processor.disconnect();
-        if (analyser) analyser.disconnect();
-        if (audioContext) audioContext.close();
-        mediaStream = null;
-        audioContext = null;
-        analyser = null;
-    }
-
-    function stopRecording() {
-        if (inactivityTimer) {
-            clearInterval(inactivityTimer);
-            inactivityTimer = null;
-        }
-
-        if (!isRecording) return;
-        isRecording = false;
-
-        recordButton.textContent = "Start Recording";
-        recordButton.classList.remove("recording");
-        captureSystemButton.disabled = false;
-        statusDiv.textContent = "Click 'Start Recording' and begin speaking.";
-        interimDisplay.textContent = "";
-        setSettingsEnabled(true);
-
-        stopAudioCapture();
-        audioQueue.length = 0;
-        isPlayingAudio = false;
-
-        if (socket && socket.connected) socket.emit('stop_translation');
-        
-        captureMode = 'mic';
-    }
-
-    function handleSettingsChange() {
-        sendSettings();
-    }
-
-    [sourceLanguageSelect, targetLanguageSelect, ttsToggle, audioSourceSelect].forEach(el => {
-        el.addEventListener('change', handleSettingsChange);
-    });
-
-    function downsample(buffer, fromSampleRate, toSampleRate) {
-        if (fromSampleRate === toSampleRate) return buffer;
-        const sampleRateRatio = fromSampleRate / toSampleRate;
-        const newLength = Math.round(buffer.length / sampleRateRatio);
-        const result = new Float32Array(newLength);
-        let offsetResult = 0, offsetBuffer = 0;
-        while (offsetResult < result.length) {
-            const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
-            let accum = 0, count = 0;
-            for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
-                accum += buffer[i];
-                count++;
-            }
-            result[offsetResult] = accum / count;
-            offsetResult++;
-            offsetBuffer = nextOffsetBuffer;
-        }
-        return result;
-    }
-
-    function toPCM16(input) {
-        const buffer = new ArrayBuffer(input.length * 2);
-        const view = new DataView(buffer);
-        for (let i = 0; i < input.length; i++) {
-            const s = Math.max(-1, Math.min(1, input[i]));
-            view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-        }
-        return buffer;
-    }
-
     // Initial setup
     setSettingsEnabled(true);
     populateAudioInputDevices().then(() => {
-        connectSocket(); // Connect after populating devices
+        connectSocket();
     });
 
     if (Notification.permission === 'default') {
