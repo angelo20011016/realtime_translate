@@ -6,7 +6,7 @@ services:
     container_name: realtime_translate_app
     ports:
       - "5002:5002"
-    command: gunicorn -w 1 --worker-class gevent -b 0.0.0.0:5002 app:app
+    command: gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 -b 0.0.0.0:5002 app:app
     env_file:
       - .env
     volumes:

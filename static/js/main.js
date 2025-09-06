@@ -117,12 +117,6 @@ document.addEventListener("DOMContentLoaded", () => {
             
             displayStream.getVideoTracks().forEach(track => track.stop());
 
-            socket.emit('start_translation', {
-                sourceLanguage: sourceLanguageSelect.value,
-                targetLanguage: targetLanguageSelect.value,
-                ttsEnabled: ttsToggle.checked
-            });
-
             setupAudioProcessing(displayStream);
             statusDiv.textContent = "Capturing system audio...";
 
@@ -135,10 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function connectSocket() {
         if (socket && socket.connected) {
-            if (isRecording) {
-                statusDiv.textContent = "Connected. Start to speak.";
-                startAudioCaptureAndEmitSettings();
-            }
+            sendSettings();
             return;
         }
 
@@ -146,14 +137,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         socket.on('connect', () => {
             console.log("Socket connected.");
+            statusDiv.textContent = "Connected to server.";
             if (reconnectInterval) {
                 clearInterval(reconnectInterval);
                 reconnectInterval = null;
             }
-            if (isRecording) {
-                statusDiv.textContent = "Connected. Start to speak.";
-                startAudioCaptureAndEmitSettings();
-            }
+            sendSettings(); // Send initial settings on connect
         });
 
         socket.on('interim_result', (data) => { interimDisplay.textContent = data.text; });
@@ -195,9 +184,9 @@ document.addEventListener("DOMContentLoaded", () => {
             stopAudioCapture();
             if (!reconnectInterval) {
                 reconnectInterval = setInterval(() => {
-                    if (!socket.connected) {
+                    if (!socket || !socket.connected) {
                         console.log("Attempting to reconnect...");
-                        socket.connect();
+                        connectSocket();
                     }
                 }, 3000);
             }
@@ -207,6 +196,19 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error('Connection Error:', error);
             statusDiv.textContent = 'Connection failed. Retrying...';
         });
+    }
+
+    function sendSettings() {
+        if (socket && socket.connected) {
+            console.log("Sending settings to server...");
+            socket.emit('settings_changed', {
+                sourceLanguage: sourceLanguageSelect.value,
+                targetLanguage: targetLanguageSelect.value,
+                ttsEnabled: ttsToggle.checked
+            });
+        } else {
+            console.log("Socket not connected. Cannot send settings.");
+        }
     }
 
     function playNextInQueue() {
@@ -254,19 +256,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function startAudioCaptureAndEmitSettings() {
+    function startAudioProcessing() {
         if (captureMode === 'display') {
             console.log("In display capture mode, skipping microphone setup.");
             return;
         }
 
         statusDiv.textContent = "Microphone connected. Connecting to server...";
-        socket.emit('start_translation', {
-            sourceLanguage: sourceLanguageSelect.value,
-            targetLanguage: targetLanguageSelect.value,
-            ttsEnabled: ttsToggle.checked
-        });
-
+        
         const constraints = { audio: { deviceId: { exact: audioSourceSelect.value } }, video: false };
 
         navigator.mediaDevices.getUserMedia(constraints)
@@ -335,6 +332,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     function startRecording() {
+        if (!socket || !socket.connected) {
+            statusDiv.textContent = "Not connected to server. Please wait.";
+            return;
+        }
         isRecording = true;
         recordButton.textContent = "Stop Recording";
         recordButton.classList.add("recording");
@@ -347,7 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (inactivityTimer) clearInterval(inactivityTimer);
         inactivityTimer = setInterval(checkInactivity, 2000);
 
-        connectSocket();
+        startAudioProcessing();
     }
 
     function stopAudioCapture() {
@@ -384,19 +385,12 @@ document.addEventListener("DOMContentLoaded", () => {
         isPlayingAudio = false;
 
         if (socket && socket.connected) socket.emit('stop_translation');
-        if (reconnectInterval) {
-            clearInterval(reconnectInterval);
-            reconnectInterval = null;
-        }
+        
         captureMode = 'mic';
     }
 
     function handleSettingsChange() {
-        if (socket && socket.connected && isRecording) {
-            console.log("Settings changed while recording, re-initializing...");
-            stopAudioCapture();
-            startAudioCaptureAndEmitSettings();
-        }
+        sendSettings();
     }
 
     [sourceLanguageSelect, targetLanguageSelect, ttsToggle, audioSourceSelect].forEach(el => {
@@ -435,7 +429,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initial setup
     setSettingsEnabled(true);
-    populateAudioInputDevices();
+    populateAudioInputDevices().then(() => {
+        connectSocket(); // Connect after populating devices
+    });
+
     if (Notification.permission === 'default') {
         Notification.requestPermission();
     }

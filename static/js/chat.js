@@ -158,6 +158,10 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
 
+        socket.on('status_update', (data) => {
+            statusDiv.textContent = data.message;
+        });
+
         socket.on('server_error', (data) => {
             console.error("Server error:", data.error);
             statusDiv.textContent = `Error: ${data.error}`;
