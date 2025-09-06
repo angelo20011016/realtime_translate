@@ -1,34 +1,35 @@
 document.addEventListener("DOMContentLoaded", () => {
     // --- DOM Elements ---
-    const recordButton = document.getElementById("recordButton");
+    const captureButton = document.getElementById("captureButton");
+    const generateButton = document.getElementById("generateButton");
     const statusDiv = document.getElementById("status");
     const sourceLanguageSelect = document.getElementById("sourceLanguage");
     const targetLanguageSelect = document.getElementById("targetLanguage");
+    const audioSourceSelect = document.getElementById("audioSource");
     const ttsToggle = document.getElementById("ttsToggle");
-    const conversationDisplay = document.getElementById("conversationDisplay");
-    const interimDisplay = document.getElementById("interimDisplay");
+    const processingModeSelect = document.getElementById("processingMode");
+    const transcriptDisplay = document.getElementById("transcriptDisplay");
+    const reportDisplay = document.getElementById("reportDisplay");
     const vuMeterLevel = document.getElementById('vu-meter-level');
     const settingsSidebar = document.getElementById('settings-sidebar');
     const sidebarToggle = document.getElementById('sidebar-toggle');
     const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const targetLanguageGroup = document.getElementById('targetLanguageGroup');
+    const ttsGroup = document.getElementById('ttsGroup');
+    const micSourceGroup = document.getElementById('micSourceGroup');
 
     // --- State Variables ---
     let isRecording = false;
-    let inactivityTimer = null;
-    let lastAudioTime = 0;
-    const INACTIVITY_TIMEOUT_SECONDS = 60;
+    let fullTranscript = "";
     let socket;
     let audioContext;
     let processor;
-    let source;
     let mediaStream;
     let analyser;
-    let reconnectInterval;
-    let animationFrameId;
+    let micStream, displayStream;
+
     const bufferSize = 2048;
     const targetSampleRate = 16000;
-    const audioQueue = [];
-    let isPlayingAudio = false;
 
     // --- Sidebar Logic ---
     sidebarToggle.addEventListener('click', () => {
@@ -44,117 +45,158 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- Core Functions ---
     function setSettingsEnabled(enabled) {
         sourceLanguageSelect.disabled = !enabled;
-        targetLanguageSelect.disabled = !enabled;
-        ttsToggle.disabled = !enabled;
+        processingModeSelect.disabled = !enabled;
+        if (enabled) {
+            updateModeUI();
+        } else {
+            targetLanguageSelect.disabled = true;
+            ttsToggle.disabled = true;
+            audioSourceSelect.disabled = true;
+        }
+    }
+
+    function updateModeUI() {
+        const mode = processingModeSelect.value;
+        const isTranslate = mode === 'translate';
+        const isInterview = mode === 'interview';
+        const isSummarize = mode === 'summarize';
+
+        targetLanguageGroup.style.display = isTranslate ? 'block' : 'none';
+        ttsGroup.style.display = (isTranslate || isInterview) ? 'block' : 'none';
+        micSourceGroup.style.display = (isInterview || isSummarize) ? 'block' : 'none';
+        
+        targetLanguageSelect.disabled = !isTranslate;
+        ttsToggle.disabled = !(isTranslate || isInterview);
+        audioSourceSelect.disabled = !(isInterview || isSummarize);
+
+        if (isRecording) {
+            generateButton.style.display = (isInterview || isSummarize) ? 'block' : 'none';
+        } else {
+            generateButton.style.display = 'none';
+        }
+    }
+
+    async function populateAudioInputDevices() {
+        try {
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
+            
+            audioSourceSelect.innerHTML = '';
+            if (audioInputDevices.length === 0) {
+                audioSourceSelect.innerHTML = '<option>No microphones found</option>';
+                return;
+            }
+
+            audioInputDevices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.textContent = device.label || `Microphone ${audioSourceSelect.length + 1}`;
+                audioSourceSelect.appendChild(option);
+            });
+        } catch (err) {
+            console.error("Could not get audio devices:", err);
+            statusDiv.textContent = "Microphone access denied.";
+            audioSourceSelect.innerHTML = '<option>Permission denied</option>';
+        }
     }
 
     function connectSocket() {
-        if (socket && socket.connected) {
-            sendSettings();
-            return;
-        }
+        if (socket && socket.connected) return;
 
         socket = io({ reconnection: false });
 
         socket.on('connect', () => {
             console.log("Socket connected.");
-            statusDiv.textContent = "Connected to server.";
-            if (reconnectInterval) {
-                clearInterval(reconnectInterval);
-                reconnectInterval = null;
-            }
-            sendSettings(); // Send initial settings on connect
+            statusDiv.textContent = "Connected. Ready to capture.";
         });
 
-        socket.on('interim_result', (data) => { interimDisplay.textContent = data.text; });
+        socket.on('interim_result', (data) => {
+            const lastEntry = transcriptDisplay.lastElementChild;
+            if (lastEntry && lastEntry.classList.contains('interim')) {
+                lastEntry.textContent = data.text;
+            } else {
+                const p = document.createElement('p');
+                p.classList.add('interim');
+                p.textContent = data.text;
+                transcriptDisplay.appendChild(p);
+            }
+            transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+        });
 
         socket.on('final_result', (data) => {
-            lastAudioTime = Date.now(); // Reset inactivity timer on new result
-            interimDisplay.textContent = "";
-            if (!data.original) return;
+            const lastEntry = transcriptDisplay.lastElementChild;
+            if (lastEntry && lastEntry.classList.contains('interim')) {
+                lastEntry.classList.remove('interim');
+                lastEntry.textContent = data.original;
+            } else {
+                const p = document.createElement('p');
+                p.textContent = data.original;
+                transcriptDisplay.appendChild(p);
+            }
+            transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+            fullTranscript += data.original + " ";
 
-            const entryDiv = document.createElement('div');
-            entryDiv.classList.add('conversation-entry');
-            const originalP = document.createElement('p');
-            originalP.classList.add('original-text');
-            originalP.textContent = data.original;
-            entryDiv.appendChild(originalP);
-            const translatedP = document.createElement('p');
-            translatedP.classList.add('translated-text');
-            translatedP.textContent = data.refined;
-            entryDiv.appendChild(translatedP);
-            conversationDisplay.appendChild(entryDiv);
-            conversationDisplay.scrollTop = conversationDisplay.scrollHeight;
+            if (processingModeSelect.value === 'translate') {
+                const entryDiv = document.createElement('div');
+                entryDiv.classList.add('conversation-entry');
+                const originalP = document.createElement('p');
+                originalP.classList.add('original-text');
+                originalP.textContent = data.original;
+                entryDiv.appendChild(originalP);
+                const translatedP = document.createElement('p');
+                translatedP.classList.add('translated-text');
+                translatedP.textContent = data.refined;
+                entryDiv.appendChild(translatedP);
+                reportDisplay.appendChild(entryDiv);
+                reportDisplay.scrollTop = reportDisplay.scrollHeight;
+            }
         });
 
-        socket.on('audio_synthesis_result', (data) => {
+        socket.on('batch_result', (data) => {
+            reportDisplay.innerHTML = '';
+            const p = document.createElement('p');
+            p.textContent = data.report;
+            reportDisplay.appendChild(p);
+            statusDiv.textContent = "Report generated.";
+            if (ttsToggle.checked && processingModeSelect.value === 'interview') {
+                socket.emit('request_report_audio', { text: data.report });
+            }
+        });
+
+        socket.on('report_audio', (data) => {
             const audioBlob = new Blob([new Uint8Array(data.audio)], { type: 'audio/mpeg' });
-            audioQueue.push(audioBlob);
-            playNextInQueue();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+            audio.onended = () => URL.revokeObjectURL(audioUrl);
+        });
+
+        socket.on('audio_synthesis_result', (data) => { // For real-time translation TTS
+            const audioBlob = new Blob([new Uint8Array(data.audio)], { type: 'audio/mpeg' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+            audio.onended = () => URL.revokeObjectURL(audioUrl);
         });
 
         socket.on('server_error', (data) => {
             console.error("Server error:", data.error);
             statusDiv.textContent = `Error: ${data.error}`;
-            stopRecording();
+            stopCapture();
         });
 
         socket.on('disconnect', () => {
             console.log("Socket disconnected.");
-            statusDiv.textContent = "Disconnected. Attempting to reconnect...";
-            stopAudioCapture();
-            if (!reconnectInterval) {
-                reconnectInterval = setInterval(() => {
-                    if (!socket || !socket.connected) {
-                        console.log("Attempting to reconnect...");
-                        connectSocket();
-                    }
-                }, 3000);
-            }
+            statusDiv.textContent = "Disconnected. Please refresh.";
+            stopCapture();
         });
-
-        socket.on('connect_error', (error) => {
-            console.error('Connection Error:', error);
-            statusDiv.textContent = 'Connection failed. Retrying...';
-        });
-    }
-
-    function sendSettings() {
-        if (socket && socket.connected) {
-            console.log("Sending settings to server...");
-            socket.emit('settings_changed', {
-                sourceLanguage: sourceLanguageSelect.value,
-                targetLanguage: targetLanguageSelect.value,
-                ttsEnabled: ttsToggle.checked
-            });
-        } else {
-            console.log("Socket not connected. Cannot send settings.");
-        }
-    }
-
-    function playNextInQueue() {
-        if (isPlayingAudio || audioQueue.length === 0) {
-            return;
-        }
-        isPlayingAudio = true;
-        const audioBlob = audioQueue.shift();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        audio.play().catch(e => {
-            console.error("Error playing TTS audio:", e);
-            isPlayingAudio = false;
-        });
-        audio.onended = () => {
-            URL.revokeObjectURL(audioUrl);
-            isPlayingAudio = false;
-            playNextInQueue();
-        };
     }
 
     function setupAudioProcessing(stream) {
         mediaStream = stream;
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        source = audioContext.createMediaStreamSource(stream);
+        const source = audioContext.createMediaStreamSource(stream);
         processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
@@ -170,11 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
         source.connect(analyser);
         analyser.connect(processor);
         processor.connect(audioContext.destination);
-        
         updateVUMeter();
-        if (socket.connected) {
-            statusDiv.textContent = "Connected. Start to speak or play audio.";
-        }
     }
 
     function updateVUMeter() {
@@ -185,138 +223,127 @@ document.addEventListener("DOMContentLoaded", () => {
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
         analyser.getByteTimeDomainData(dataArray);
-
         let sumSquares = 0.0;
         for (const amplitude of dataArray) {
             const normalized = (amplitude / 128.0) - 1.0;
             sumSquares += normalized * normalized;
         }
         const rms = Math.sqrt(sumSquares / dataArray.length);
-        
-        const maxLevel = 0.5;
-        const level = Math.min(1, rms / maxLevel) * 100;
+        const level = Math.min(1, rms / 0.5) * 100;
         vuMeterLevel.style.width = level + '%';
-
         animationFrameId = requestAnimationFrame(updateVUMeter);
     }
 
-    function showNotification(title, body) {
-        if (Notification.permission === 'granted') {
-            new Notification(title, { body: body });
-        } else {
-            statusDiv.textContent = body;
-        }
-    }
-
-    function checkInactivity() {
-        if (!isRecording) {
-            clearInterval(inactivityTimer);
-            inactivityTimer = null;
-            return;
-        }
-        const inactiveDuration = (Date.now() - lastAudioTime) / 1000;
-        if (inactiveDuration > INACTIVITY_TIMEOUT_SECONDS) {
-            console.log(`Stopping due to inactivity for over ${INACTIVITY_TIMEOUT_SECONDS} seconds.`);
-            stopRecording();
-            showNotification("Recording Auto-Stopped", `Stopped due to ${INACTIVITY_TIMEOUT_SECONDS}s of inactivity.`);
-        }
-    }
-
-    recordButton.addEventListener("click", async () => {
-        if (isRecording) {
-            await stopRecording();
-        } else {
-            startRecording();
-        }
-    });
-
-    async function startRecording() {
+    async function startCapture() {
         if (!socket || !socket.connected) {
-            statusDiv.textContent = "Not connected to server. Please wait.";
+            statusDiv.textContent = "Not connected. Please wait.";
             return;
         }
         isRecording = true;
-        recordButton.textContent = "Stop Recording";
-        recordButton.classList.add("recording");
-        statusDiv.textContent = "Requesting system audio access...";
-        interimDisplay.textContent = "Listening...";
+        fullTranscript = "";
+        transcriptDisplay.innerHTML = "";
+        reportDisplay.innerHTML = "";
+        captureButton.textContent = "Stop Capture";
+        captureButton.classList.add("recording");
+        statusDiv.textContent = "Requesting audio access...";
         setSettingsEnabled(false);
 
-        lastAudioTime = Date.now();
-        if (inactivityTimer) clearInterval(inactivityTimer);
-        inactivityTimer = setInterval(checkInactivity, 2000);
+        socket.emit('start_translation', { // This event now just sets up the recognizer on the backend
+            sourceLanguage: sourceLanguageSelect.value,
+            targetLanguage: targetLanguageSelect.value,
+            ttsEnabled: ttsToggle.checked
+        });
 
         try {
-            const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-            
-            if (displayStream.getAudioTracks().length === 0) {
-                alert("Audio sharing is required. Please try again and check the 'Share audio' box.");
-                await stopRecording();
-                return;
-            }
-            
-            displayStream.getVideoTracks().forEach(track => track.stop());
+            const mode = processingModeSelect.value;
+            const needsMic = mode === 'summarize' || mode === 'interview';
 
-            setupAudioProcessing(displayStream);
-            statusDiv.textContent = "Capturing system audio...";
+            displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            if (displayStream.getAudioTracks().length === 0) {
+                alert("System audio sharing is required. Please try again.");
+                throw new Error("No system audio shared.");
+            }
+
+            let finalStream;
+            if (needsMic) {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: audioSourceSelect.value } } });
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const systemSource = audioContext.createMediaStreamSource(displayStream);
+                const micSource = audioContext.createMediaStreamSource(micStream);
+                const destination = audioContext.createMediaStreamDestination();
+                
+                systemSource.connect(destination);
+                micSource.connect(destination);
+                
+                finalStream = destination.stream;
+            } else {
+                finalStream = displayStream;
+            }
+
+            displayStream.getVideoTracks().forEach(track => track.stop());
+            setupAudioProcessing(finalStream);
+            statusDiv.textContent = "Capturing...";
 
         } catch (err) {
-            console.error("Error starting system audio capture:", err);
-            statusDiv.textContent = "Capture cancelled or failed.";
-            await stopRecording();
+            console.error("Error starting capture:", err);
+            statusDiv.textContent = `Error: ${err.message}`;
+            await stopCapture();
         }
     }
 
-    async function stopAudioCapture() {
+    async function stopCapture() {
+        if (!isRecording) return;
+        isRecording = false;
+
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         vuMeterLevel.style.width = '0%';
+        
         if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
-        if (source) source.disconnect();
+        if (micStream) micStream.getTracks().forEach(track => track.stop());
+        if (displayStream) displayStream.getTracks().forEach(track => track.stop());
+
         if (processor) {
             processor.disconnect();
             processor.onaudioprocess = null;
         }
         if (analyser) analyser.disconnect();
-        
         if (audioContext && audioContext.state !== 'closed') {
             await audioContext.close();
         }
 
-        mediaStream = null;
-        audioContext = null;
-        analyser = null;
-        processor = null;
-    }
+        mediaStream = micStream = displayStream = audioContext = analyser = processor = null;
 
-    async function stopRecording() {
-        if (inactivityTimer) {
-            clearInterval(inactivityTimer);
-            inactivityTimer = null;
-        }
-
-        if (!isRecording) return;
-        isRecording = false;
-
-        recordButton.textContent = "Start System Capture";
-        recordButton.classList.remove("recording");
-        statusDiv.textContent = "Click 'Start System Capture' to begin.";
-        interimDisplay.textContent = "";
+        captureButton.textContent = "Start Capture";
+        captureButton.classList.remove("recording");
+        statusDiv.textContent = "Capture stopped.";
         setSettingsEnabled(true);
-
-        await stopAudioCapture();
-        audioQueue.length = 0;
-        isPlayingAudio = false;
 
         if (socket && socket.connected) socket.emit('stop_translation');
     }
 
-    function handleSettingsChange() {
-        sendSettings();
-    }
-
-    [sourceLanguageSelect, targetLanguageSelect, ttsToggle].forEach(el => {
-        el.addEventListener('change', handleSettingsChange);
+    captureButton.addEventListener("click", async () => {
+        if (isRecording) {
+            await stopCapture();
+        } else {
+            await startCapture();
+        }
     });
+
+    generateButton.addEventListener("click", () => {
+        if (!fullTranscript) {
+            statusDiv.textContent = "No transcript to process.";
+            return;
+        }
+        statusDiv.textContent = `Sending transcript for ${processingModeSelect.value}...`;
+        socket.emit('process_batch', {
+            transcript: fullTranscript,
+            mode: processingModeSelect.value,
+            sourceLanguage: sourceLanguageSelect.value
+        });
+    });
+
+    processingModeSelect.addEventListener('change', updateModeUI);
 
     function downsample(buffer, fromSampleRate, toSampleRate) {
         if (fromSampleRate === toSampleRate) return buffer;
@@ -351,8 +378,5 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initial setup
     setSettingsEnabled(true);
     connectSocket();
-
-    if (Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
+    populateAudioInputDevices();
 });

@@ -426,7 +426,17 @@
     <div class="main-wrapper">
         <!-- Settings Sidebar -->
         <div id="settings-sidebar" class="settings-sidebar">
-            <h1><a href="/" style="color: inherit; text-decoration: none;">Translator Settings</a></h1>
+            <h1><a href="/" style="color: inherit; text-decoration: none;">Audio Processor</a></h1>
+
+            <!-- Mode Selection -->
+            <div class="control-group">
+                <label for="processingMode">Function Mode</label>
+                <select id="processingMode" class="form-select">
+                    <option value="translate">Real-time Translation</option>
+                    <option value="summarize">Meeting Summary</option>
+                    <option value="interview">Interview Coach</option>
+                </select>
+            </div>
 
             <!-- Source Language Control -->
             <div class="control-group">
@@ -439,7 +449,7 @@
             </div>
 
             <!-- Target Language Control -->
-            <div class="control-group">
+            <div class="control-group" id="targetLanguageGroup">
                 <label for="targetLanguage">Output Language</label>
                 <select id="targetLanguage" class="form-select">
                     <option value="zh-TW">Chinese (Traditional)</option>
@@ -448,8 +458,14 @@
                 </select>
             </div>
 
+            <!-- Microphone Source Control -->
+            <div class="control-group" id="micSourceGroup" style="display: none;">
+                <label for="audioSource">Microphone Input</label>
+                <select id="audioSource" class="form-select"></select>
+            </div>
+
             <!-- Text-to-Speech Toggle -->
-            <div class="control-group">
+            <div class="control-group" id="ttsGroup">
                 <div class="form-check form-switch tts-switch">
                     <input class="form-check-input" type="checkbox" role="switch" id="ttsToggle">
                     <label class="form-check-label" for="ttsToggle">Enable Voice Output</label>
@@ -461,8 +477,9 @@
                 <div id="vu-meter"><div id="vu-meter-level"></div></div>
             </div>
 
-            <!-- Record Button -->
-            <button id="recordButton" class="btn">Start System Capture</button>
+            <!-- Action Buttons -->
+            <button id="captureButton" class="btn">Start Capture</button>
+            <button id="generateButton" class="btn" style="display: none; margin-top: 10px; background-color: var(--accent-cyan);">Generate Report</button>
 
             <!-- Status Message -->
             <div id="status" class="status mt-2">Ready for input...</div>
@@ -477,19 +494,18 @@
             <button id="sidebar-toggle"><i class="bi bi-list"></i></button>
 
             <!-- Main Title -->
-            <h1 class="title-font">Real-time System Audio Translation</h1>
+            <h1 class="title-font">System Audio Processor</h1>
 
-            <!-- Interim Display for real-time transcription -->
-            <div id="interimDisplay" class="interim-display-box">
+            <!-- Live Transcript Display -->
+            <h2 class="mt-3 title-font">Live Transcript</h2>
+            <div id="transcriptDisplay" class="interim-display-box" style="height: 30vh; overflow-y: auto;">
                 <!-- Real-time transcribed text will appear here -->
             </div>
 
-            <!-- Conversation History Title -->
-            <h1 class="mt-3 title-font">Conversation Log</h1>
-
-            <!-- Conversation Display for translated history -->
-            <div id="conversationDisplay" class="conversation-history">
-                <!-- Translated conversation will appear here -->
+            <!-- Report/Result Display -->
+            <h2 class="mt-3 title-font">Report</h2>
+            <div id="reportDisplay" class="conversation-history" style="height: 40vh; overflow-y: auto;">
+                <!-- Final report, summary, or translation will appear here -->
             </div>
         </main>
     </div>

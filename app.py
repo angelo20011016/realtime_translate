@@ -202,8 +202,8 @@ def get_translation_prompt(text, target_lang_code):
 # --- MODIFIED FUNCTION END ---
 
 
-def synthesize_speech(text, lang_code, sid):
-    """Synthesizes text to speech and sends it to the client."""
+def synthesize_speech(text, lang_code, sid, event_name='audio_synthesis_result'):
+    """Synthesizes text to speech and sends it to the client on a specified event."""
     try:
         voice_name = LANGUAGE_VOICES.get(lang_code)
         if not voice_name:
@@ -217,8 +217,8 @@ def synthesize_speech(text, lang_code, sid):
 
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
             logging.info(f"Speech synthesis successful for sid {sid}.")
-            # Emit the audio data directly to the client
-            socketio.emit('audio_synthesis_result', {'audio': result.audio_data}, room=sid)
+            # Emit the audio data directly to the client on the specified event
+            socketio.emit(event_name, {'audio': result.audio_data}, room=sid)
         else:
             cancellation = result.cancellation_details
             logging.error(f"Speech synthesis canceled for sid {sid}: {cancellation.reason}")
@@ -533,9 +533,82 @@ def cleanup_client(sid):
             client_info['stream'].close()
         logging.info(f"Cleaned up resources for sid {sid}")
 
+def get_batch_prompt(transcript, mode, source_language):
+    """Generates a prompt for batch processing based on the selected mode."""
+    source_lang_name = LANGUAGE_NAMES.get(source_language, source_language)
+
+    if mode == 'summarize':
+        prompt = (
+            f"You are a professional meeting assistant. The following is a transcript of a meeting in {source_lang_name}. "
+            f"Please provide a concise summary of the meeting. Identify key decisions made and action items for participants."
+            f"\n\nTranscript:\n\n{transcript}"
+            f"\n\nSummary:"
+        )
+    elif mode == 'interview':
+        prompt = (
+            f"You are an expert interview coach. The following is a transcript of a job interview. The candidate's responses are in {source_lang_name}. "
+            f"Please analyze the candidate's responses. Provide constructive feedback on their communication skills, the clarity of their answers, and the overall impression they made. "
+            f"Suggest specific areas for improvement. Structure your feedback into sections: Strengths, Areas for Improvement, and Key Takeaways."
+            f"\n\nInterview Transcript:\n\n{transcript}"
+            f"\n\nFeedback:"
+        )
+    else:
+        prompt = f"Please process the following text: {transcript}"
+    
+    return prompt
+
+@socketio.on('process_batch')
+def handle_process_batch(data):
+    """Handles a batch processing request from the client."""
+    sid = request.sid
+    transcript = data.get('transcript')
+    mode = data.get('mode')
+    source_language = data.get('sourceLanguage')
+
+    if not transcript or not mode or not source_language:
+        socketio.emit('server_error', {"error": "Incomplete data received for batch processing."}, room=sid)
+        return
+
+    logging.info(f"Processing batch request for sid {sid}: Mode={mode}")
+
+    try:
+        prompt = get_batch_prompt(transcript, mode, source_language)
+        response = model.generate_content(prompt)
+        report_text = response.text.strip()
+        logging.info(f"Generated report for sid {sid}")
+        
+        socketio.emit('batch_result', {
+            "report": report_text
+        }, room=sid)
+
+    except Exception as e:
+        logging.error(f"Gemini API error during batch processing for sid {sid}: {e}")
+        socketio.emit('server_error', {"error": "Failed to generate report due to an API error."})
+
+
+@socketio.on('request_report_audio')
+def handle_request_report_audio(data):
+    """Handles a client request to synthesize the generated report text."""
+    sid = request.sid
+    text = data.get('text')
+    if not text:
+        return
+
+    client_info = clients.get(sid)
+    if not client_info:
+        logging.warning(f"Could not find client info for sid {sid} to synthesize report.")
+        return
+    
+    # Use the original source language for the report synthesis
+    lang_code = client_info.get('source_lang')
+    logging.info(f"Synthesizing report for sid {sid} in language {lang_code}")
+    synthesize_speech(text, lang_code, sid, event_name='report_audio')
+
+
 @socketio.on('stop_translation')
 def handle_stop_translation():
     """Handles client-initiated stop."""
+
     sid = request.sid
     logging.info(f"Client {sid} requested to stop translation.")
     
