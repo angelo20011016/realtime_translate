@@ -52,4 +52,5 @@ zope.interface==7.2
 gunicorn
 gevent-websocket
 uvicorn
+redis
 

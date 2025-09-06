@@ -15,7 +15,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-very-secret-key')
-socketio = SocketIO(app)
+socketio = SocketIO(app, message_queue='redis://redis')
 
 # --- Gemini API Configuration ---
 try:
