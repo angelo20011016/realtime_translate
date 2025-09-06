@@ -1,3 +1,6 @@
+from gevent import monkey
+monkey.patch_all()
+import redis
 import os
 import json
 import logging
@@ -15,7 +18,17 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-very-secret-key')
-socketio = SocketIO(app, message_queue='redis://redis')
+socketio = SocketIO(app, async_mode='gevent', message_queue='redis://redis')
+
+# Add this block after socketio initialization
+# try:
+#     r = redis.Redis(host='redis', port=6379, db=0)
+#     r.ping()
+#     r.set('test_key', 'test_value')
+#     test_value = r.get('test_key')
+#     logging.info(f"Redis connection successful! test_key: {test_value.decode()}")
+# except Exception as e:
+#     logging.error(f"Redis connection failed: {e}")
 
 # --- Gemini API Configuration ---
 try:
@@ -400,56 +413,51 @@ def handle_start_translation(data):
 
 @socketio.on('settings_changed')
 def handle_settings_changed(data):
-    """Handles changes in language or TTS settings from the client."""
+    """Handles changes in language or TTS settings from the client by restarting the recognizer."""
     sid = request.sid
+    logging.info(f"Settings changed for sid {sid}. Restarting translation process.")
+    
+    # First, stop and clean up any existing process for this client.
     if sid in clients:
-        client_info = clients[sid]
+        cleanup_client(sid)
+
+    # Now, start a new translation process with the new settings.
+    # This logic is duplicated from handle_start_translation for simplicity and safety.
+    source_lang = data.get('sourceLanguage')
+    target_lang = data.get('targetLanguage')
+    tts_enabled = data.get('ttsEnabled', False)
+
+    if not source_lang or not target_lang:
+        logging.warning(f"Incomplete settings received for sid {sid}. Aborting settings change.")
+        return
+
+    logging.info(f"Applying new settings for sid {sid}: Source={source_lang}, Target={target_lang}, TTS={tts_enabled}")
+
+    try:
+        client_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+        client_speech_config.speech_recognition_language = source_lang
         
-        # Get new settings, keeping existing ones if not provided
-        source_lang = data.get('sourceLanguage', client_info['source_lang'])
-        target_lang = data.get('targetLanguage', client_info['target_lang'])
-        tts_enabled = data.get('ttsEnabled', client_info['tts_enabled'])
+        push_stream = speechsdk.audio.PushAudioInputStream()
+        audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
+        speech_recognizer = speechsdk.SpeechRecognizer(speech_config=client_speech_config, audio_config=audio_config)
 
-        # Log the change
-        logging.info(f"Updating settings for sid {sid}: Source={source_lang}, Target={target_lang}, TTS={tts_enabled}")
+        clients[sid] = {
+            'recognizer': speech_recognizer,
+            'stream': push_stream,
+            'source_lang': source_lang,
+            'target_lang': target_lang,
+            'tts_enabled': tts_enabled
+        }
 
-        # Update the client's settings
-        client_info['source_lang'] = source_lang
-        client_info['target_lang'] = target_lang
-        client_info['tts_enabled'] = tts_enabled
+        speech_recognizer.recognizing.connect(lambda evt: socketio.emit('interim_result', {'text': evt.result.text}, room=sid))
+        speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
+        speech_recognizer.session_stopped.connect(lambda evt: logging.info(f"Session stopped for sid {sid}."))
+        speech_recognizer.canceled.connect(lambda evt: logging.info(f"Canceled event for sid {sid}."))
         
-        # Update the speech recognizer's language
-        if client_info['speech_config'].speech_recognition_language != source_lang:
-            logging.info(f"Language changed for sid {sid}. Recreating recognizer.")
-            
-            # Stop the old recognizer
-            client_info['recognizer'].stop_continuous_recognition()
-
-            # Create a new recognizer with the updated language
-            new_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
-            new_speech_config.speech_recognition_language = source_lang
-            
-            new_recognizer = speechsdk.SpeechRecognizer(
-                speech_config=new_speech_config, 
-                audio_config=client_info['audio_config']
-            )
-
-            # Connect new callbacks
-            new_recognizer.recognizing.connect(lambda evt: (
-                socketio.emit('interim_result', {'text': evt.result.text}, room=sid),
-                logging.info(f"Recognizing event for sid {sid}: {evt.result.text}")
-            ))
-            new_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
-            
-            # Start the new recognizer
-            new_recognizer.start_continuous_recognition()
-            
-            # Update client info with the new recognizer and config
-            client_info['recognizer'] = new_recognizer
-            client_info['speech_config'] = new_speech_config
-        
-    else:
-        logging.warning(f"Received settings_changed for unknown sid: {sid}")
+        speech_recognizer.start_continuous_recognition()
+    except Exception as e:
+        logging.error(f"Failed to restart recognizer for sid {sid} after settings change: {e}")
+        socketio.emit('server_error', {"error": "Failed to apply new settings."})
 
 
 @socketio.on('audio_data')

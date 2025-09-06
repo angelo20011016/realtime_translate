@@ -53,4 +53,5 @@ gunicorn
 gevent-websocket
 uvicorn
 redis
+dnspython
 
