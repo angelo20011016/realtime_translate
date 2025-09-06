@@ -61,14 +61,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const isInterview = mode === 'interview';
         const isSummarize = mode === 'summarize';
 
+        // Show/hide controls based on the selected mode
         targetLanguageGroup.style.display = isTranslate ? 'block' : 'none';
-        ttsGroup.style.display = (isTranslate || isInterview) ? 'block' : 'none';
         micSourceGroup.style.display = (isInterview || isSummarize) ? 'block' : 'none';
+        ttsGroup.style.display = (isTranslate || isInterview) ? 'block' : 'none';
         
+        // Enable/disable controls to prevent interaction when hidden
         targetLanguageSelect.disabled = !isTranslate;
-        ttsToggle.disabled = !(isTranslate || isInterview);
         audioSourceSelect.disabled = !(isInterview || isSummarize);
+        ttsToggle.disabled = !(isTranslate || isInterview);
 
+        // Show the generate button only for batch modes and only after capture has started
         if (isRecording) {
             generateButton.style.display = (isInterview || isSummarize) ? 'block' : 'none';
         } else {
