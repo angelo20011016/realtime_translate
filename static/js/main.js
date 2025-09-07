@@ -93,7 +93,9 @@ document.addEventListener("DOMContentLoaded", () => {
             sendSettings(); // Send initial settings on connect
         });
 
-        socket.on('interim_result', (data) => { interimDisplay.textContent = data.text; });
+                socket.on('interim_result', (data) => {
+            interimDisplay.innerHTML = `<div class="text-container"><p class="original-text">${data.text}</p></div>`;
+        });
 
         socket.on('final_result', (data) => {
             lastAudioTime = Date.now();
@@ -101,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!data.original) return;
 
             const entryDiv = document.createElement('div');
-            entryDiv.classList.add('conversation-entry');
+            entryDiv.classList.add('text-container');
             const originalP = document.createElement('p');
             originalP.classList.add('original-text');
             originalP.textContent = data.original;
