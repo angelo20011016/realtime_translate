@@ -295,13 +295,24 @@
             border: 1px solid var(--border-color-subtle);
             border-radius: 8px;
             padding: 18px;
-            overflow: hidden; /* Crucial for positioning absolute pseudo-elements */
+            overflow-y: auto; /* Enable vertical scrolling */
             font-size: 1.05rem;
             line-height: 1.6;
             color: var(--text-light);
             box-shadow: 0 0 10px rgba(79, 209, 197, 0.15);
             transition: box-shadow 0.3s ease-in-out;
             position: relative; /* Required for absolute positioning of ::before/::after */
+        }
+
+        /* Hide scrollbar for Webkit browsers */
+        .conversation-history::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .conversation-history {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
         }
         .interim-display-box:hover,
         .conversation-history:hover {

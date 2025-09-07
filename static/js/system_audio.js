@@ -20,6 +20,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- State Variables ---
     let isRecording = false;
+    let inactivityTimer = null;
+    let lastAudioTime = 0;
+    const INACTIVITY_TIMEOUT_SECONDS = 60;
     let fullTranscript = "";
     let socket;
     let audioContext;
@@ -27,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let mediaStream;
     let analyser;
     let micStream, displayStream;
+    let animationFrameId;
 
     const bufferSize = 2048;
     const targetSampleRate = 16000;
@@ -121,6 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         socket.on('final_result', (data) => {
+            lastAudioTime = Date.now();
             // Clear interim display
             transcriptDisplay.innerHTML = "";
             fullTranscript += data.original + " ";
@@ -230,6 +235,27 @@ document.addEventListener("DOMContentLoaded", () => {
         animationFrameId = requestAnimationFrame(updateVUMeter);
     }
 
+    function showNotification(title, body) {
+        if (Notification.permission === 'granted') {
+            new Notification(title, { body: body });
+        } else {
+            statusDiv.textContent = body;
+        }
+    }
+
+    function checkInactivity() {
+        if (!isRecording) {
+            clearInterval(inactivityTimer);
+            inactivityTimer = null;
+            return;
+        }
+        const inactiveDuration = (Date.now() - lastAudioTime) / 1000;
+        if (inactiveDuration > INACTIVITY_TIMEOUT_SECONDS) {
+            stopCapture();
+            showNotification("Recording Auto-Stopped", `Stopped due to ${INACTIVITY_TIMEOUT_SECONDS}s of inactivity.`);
+        }
+    }
+
     async function startCapture() {
         if (!socket || !socket.connected) {
             statusDiv.textContent = "Not connected. Please wait.";
@@ -243,6 +269,10 @@ document.addEventListener("DOMContentLoaded", () => {
         captureButton.classList.add("recording");
         statusDiv.textContent = "Requesting audio access...";
         setSettingsEnabled(false);
+
+        lastAudioTime = Date.now();
+        if (inactivityTimer) clearInterval(inactivityTimer);
+        inactivityTimer = setInterval(checkInactivity, 2000);
 
         socket.emit('start_translation', { // This event now just sets up the recognizer on the backend
             sourceLanguage: sourceLanguageSelect.value,
@@ -289,6 +319,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function stopCapture() {
+        if (inactivityTimer) {
+            clearInterval(inactivityTimer);
+            inactivityTimer = null;
+        }
         if (!isRecording) return;
         isRecording = false;
 
