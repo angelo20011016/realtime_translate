@@ -115,34 +115,19 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         socket.on('interim_result', (data) => {
-            const lastEntry = transcriptDisplay.lastElementChild;
-            if (lastEntry && lastEntry.classList.contains('interim')) {
-                lastEntry.textContent = data.text;
-            } else {
-                const p = document.createElement('p');
-                p.classList.add('interim');
-                p.textContent = data.text;
-                transcriptDisplay.appendChild(p);
-            }
+            // Update transcriptDisplay to show only the current interim result
+            transcriptDisplay.innerHTML = `<p class="original-text">${data.text}</p>`;
             transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
         });
 
         socket.on('final_result', (data) => {
-            const lastEntry = transcriptDisplay.lastElementChild;
-            if (lastEntry && lastEntry.classList.contains('interim')) {
-                lastEntry.classList.remove('interim');
-                lastEntry.textContent = data.original;
-            } else {
-                const p = document.createElement('p');
-                p.textContent = data.original;
-                transcriptDisplay.appendChild(p);
-            }
-            transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+            // Clear interim display
+            transcriptDisplay.innerHTML = "";
             fullTranscript += data.original + " ";
 
             if (processingModeSelect.value === 'translate') {
                 const entryDiv = document.createElement('div');
-                entryDiv.classList.add('conversation-entry');
+                entryDiv.classList.add('text-container'); // Use the new text-container class
                 const originalP = document.createElement('p');
                 originalP.classList.add('original-text');
                 originalP.textContent = data.original;
@@ -152,6 +137,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 translatedP.textContent = data.refined;
                 entryDiv.appendChild(translatedP);
                 reportDisplay.appendChild(entryDiv);
+                reportDisplay.scrollTop = reportDisplay.scrollHeight;
+            } else {
+                // For other modes (summarize, interview), append original transcript to reportDisplay
+                // This part needs to be handled carefully based on how these modes are expected to display
+                // For now, I'll just append the original text as a simple paragraph if not in translate mode
+                const p = document.createElement('p');
+                p.textContent = data.original;
+                reportDisplay.appendChild(p);
                 reportDisplay.scrollTop = reportDisplay.scrollHeight;
             }
         });

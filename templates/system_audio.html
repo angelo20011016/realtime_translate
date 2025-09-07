@@ -380,18 +380,34 @@
 
 
         /* Text Styling within Display Boxes - interactive */
-        .original-text, .translated-text {
+        .original-text {
             font-weight: 600;
+            color: var(--accent-cyan); /* Apply color directly */
+            text-shadow: var(--neon-text-shadow); /* Apply shadow directly */
             transition: color 0.25s ease-in-out, text-shadow 0.25s ease-in-out;
             cursor: default;
         }
-        .original-text:hover {
-            color: var(--accent-cyan);
-            text-shadow: var(--neon-text-shadow);
+        .translated-text {
+            font-weight: 600;
+            color: var(--accent-pink); /* Apply color directly */
+            text-shadow: 0 0 8px rgba(246, 173, 85, 0.5); /* Apply shadow directly */
+            transition: color 0.25s ease-in-out, text-shadow 0.25s ease-in-out;
+            cursor: default;
         }
-        .translated-text:hover {
-            color: var(--accent-pink);
-            text-shadow: 0 0 8px rgba(246, 173, 85, 0.5);
+        /* New styles for the text containers */
+        .text-container {
+            background-color: var(--secondary-bg);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px; /* Space between messages */
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color-subtle);
+        }
+        .text-container:last-child {
+            margin-bottom: 0;
+        }
+        .text-container p {
+            margin: 0; /* Remove default paragraph margin */
         }
 
         /* --- Keyframe Animations for Current Effects --- */
@@ -498,13 +514,13 @@
 
             <!-- Live Transcript Display -->
             <h2 class="mt-3 title-font">Live Transcript</h2>
-            <div id="transcriptDisplay" class="interim-display-box" style="height: 30vh; overflow-y: auto;">
+            <div id="transcriptDisplay" class="interim-display-box">
                 <!-- Real-time transcribed text will appear here -->
             </div>
 
             <!-- Report/Result Display -->
             <h2 class="mt-3 title-font">Report</h2>
-            <div id="reportDisplay" class="conversation-history" style="height: 40vh; overflow-y: auto;">
+            <div id="reportDisplay" class="conversation-history">
                 <!-- Final report, summary, or translation will appear here -->
             </div>
         </main>
