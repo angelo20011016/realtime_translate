@@ -35,6 +35,7 @@ let mediaStream;
 let analyser;
 let micStream, displayStream;
 let animationFrameId;
+let forceTranslateTimer = null;
 
 const bufferSize = 2048;
 const targetSampleRate = 16000;
@@ -199,6 +200,29 @@ function updateVUMeter() {
     animationFrameId = requestAnimationFrame(updateVUMeter);
 }
 
+function forceSend() {
+    if (!isRecording || !socket || !socket.connected || processingModeSelect.value !== 'translate') return;
+    
+    console.log("9s timer elapsed. Forcing translation segment.");
+    
+    // Stop the current recognition cycle on the server.
+    // This will trigger a 'final_result' from the server for the audio processed so far.
+    socket.emit('stop_translation');
+    
+    // Immediately start a new recognition cycle on the server.
+    // The client-side audio stream is not stopped, so recognition continues seamlessly.
+    // Add a small delay to ensure server has time to process the stop command
+    setTimeout(() => {
+        if (isRecording) { // Check if still recording before restarting
+            socket.emit('start_translation', {
+                sourceLanguage: sourceLanguageSelect.value,
+                targetLanguage: targetLanguageSelect.value,
+                ttsEnabled: ttsToggle.checked
+            });
+        }
+    }, 250);
+}
+
 function showNotification(title, body) {
     if (Notification.permission === 'granted') {
         new Notification(title, { body: body });
@@ -237,6 +261,11 @@ async function startCapture() {
     lastAudioTime = Date.now();
     if (inactivityTimer) clearInterval(inactivityTimer);
     inactivityTimer = setInterval(checkInactivity, 2000);
+
+    if (processingModeSelect.value === 'translate') {
+        if (forceTranslateTimer) clearInterval(forceTranslateTimer);
+        forceTranslateTimer = setInterval(forceSend, 9000);
+    }
 
     socket.emit('start_translation', {
         sourceLanguage: sourceLanguageSelect.value,
@@ -286,6 +315,10 @@ async function stopCapture() {
     if (inactivityTimer) {
         clearInterval(inactivityTimer);
         inactivityTimer = null;
+    }
+    if (forceTranslateTimer) {
+        clearInterval(forceTranslateTimer);
+        forceTranslateTimer = null;
     }
     if (!isRecording) return;
     isRecording = false;

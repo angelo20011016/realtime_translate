@@ -431,7 +431,7 @@ def handle_start_translation(data):
 
         speech_recognizer.recognizing.connect(lambda evt: socketio.emit('interim_result', {'text': evt.result.text}, room=sid))
         speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
-        speech_recognizer.session_stopped.connect(lambda evt: logging.info(f"Session stopped for sid {sid}."))
+        speech_recognizer.session_stopped.connect(lambda evt: _final_cleanup(sid, speech_recognizer))
         speech_recognizer.canceled.connect(lambda evt: logging.info(f"Canceled event for sid {sid}."))
         
         speech_recognizer.start_continuous_recognition()
@@ -480,7 +480,7 @@ def handle_settings_changed(data):
 
         speech_recognizer.recognizing.connect(lambda evt: socketio.emit('interim_result', {'text': evt.result.text}, room=sid))
         speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
-        speech_recognizer.session_stopped.connect(lambda evt: logging.info(f"Session stopped for sid {sid}."))
+        speech_recognizer.session_stopped.connect(lambda evt: _final_cleanup(sid, speech_recognizer))
         speech_recognizer.canceled.connect(lambda evt: logging.info(f"Canceled event for sid {sid}."))
         
         speech_recognizer.start_continuous_recognition()
@@ -517,40 +517,60 @@ def handle_audio_data(data):
     else:
         logging.warning(f"Audio data received for unknown or inactive sid: {sid}")
 
+def _final_cleanup(sid, recognizer_to_clean):
+    """Safely removes a client's state, ensuring the recognizer matches."""
+    # Check if the client still exists and if the recognizer is the one we expect to clean up.
+    if sid in clients and clients[sid].get('recognizer') == recognizer_to_clean:
+        clients.pop(sid, None)
+        logging.info(f"Popped client {sid} because its recognizer session stopped.")
+    else:
+        # This is normal during a quick restart. The old session stopped, but a new one is already active.
+        logging.info(f"Not popping client {sid}; its recognizer may have already been replaced.")
+
 @socketio.on('disconnect')
 def handle_disconnect():
-    """Handles a client disconnection."""
+    """Handles a client disconnection with immediate, hard cleanup."""
     sid = request.sid
     logging.info(f"Client disconnected: {sid}")
     
-    # Check if client was in a chat room
+    # Chat room cleanup
     if sid in sid_to_room:
-        room_id = sid_to_room[sid]
+        room_id = sid_to_room.pop(sid)
         if room_id in rooms and sid in rooms[room_id]:
-            user_id = rooms[room_id][sid]['userId']
-            cleanup_chat_client_recognizer(sid, room_id) # Clean up recognizer if active
+            user_id = rooms[room_id].get('userId', 'Unknown')
+            cleanup_chat_client_recognizer(sid, room_id)
             del rooms[room_id][sid]
-            del sid_to_room[sid]
-            logging.info(f"Client {user_id} (sid: {sid}) left room {room_id}.")
-            if not rooms[room_id]: # If room is empty, delete it
+            if not rooms[room_id]:
                 del rooms[room_id]
                 logging.info(f"Room {room_id} is now empty and deleted.")
             else:
-                # Broadcast updated user list to remaining members
                 emit('room_update', {'users': [{'userId': member['userId']} for member in rooms[room_id].values()]}, room=room_id)
-    # Else, it's a solo client
+            logging.info(f"Cleaned up disconnected chat client {user_id} (sid: {sid}).")
+
+    # Solo client cleanup
     elif sid in clients:
-        cleanup_client(sid)
+        client_info = clients.pop(sid, None)
+        if client_info and client_info.get('recognizer'):
+            # Disconnect all handlers to prevent them from firing after the client is gone
+            recognizer = client_info['recognizer']
+            recognizer.recognized.disconnect_all()
+            recognizer.session_stopped.disconnect_all()
+            recognizer.canceled.disconnect_all()
+            recognizer.recognizing.disconnect_all()
+            recognizer.stop_continuous_recognition()
+        if client_info and client_info.get('stream'):
+            client_info['stream'].close()
+        logging.info(f"Hard-cleaned and popped disconnected solo client {sid}")
 
 def cleanup_client(sid):
-    """Stops recognizer and cleans up resources for a client."""
+    """Stops a client's recognizer gracefully, allowing final events to be processed."""
     if sid in clients:
-        client_info = clients.pop(sid)
+        client_info = clients[sid]
         if client_info.get('recognizer'):
+            logging.info(f"Gracefully stopping recognizer for sid {sid}.")
             client_info['recognizer'].stop_continuous_recognition()
         if client_info.get('stream'):
             client_info['stream'].close()
-        logging.info(f"Cleaned up resources for sid {sid}")
 
 def get_batch_prompt(transcript, mode, source_language):
     """Generates a prompt for batch processing based on the selected mode."""
