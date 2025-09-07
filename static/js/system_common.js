@@ -1,3 +1,28 @@
+// === 下載聊天室內容(txt) ===
+document.addEventListener('DOMContentLoaded', function() {
+    const downloadChatButton = document.getElementById('downloadChatButton');
+    if (downloadChatButton) {
+        downloadChatButton.addEventListener('click', function() {
+            let chatText = '';
+            const reportDiv = document.getElementById('reportDisplay');
+            if (reportDiv) {
+                chatText = reportDiv.innerText.trim();
+            }
+            if (!chatText) {
+                alert('沒有聊天室內容可下載');
+                return;
+            }
+            const blob = new Blob([chatText], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'chat.txt';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        });
+    }
+});
 /*
 This file contains the shared logic for all system audio modes.
 It declares variables and functions in the global scope for other scripts to use.
