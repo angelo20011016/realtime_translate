@@ -7,7 +7,8 @@ import json
 import logging
 import time
 from dotenv import load_dotenv
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
+from summary import get_summary_from_text
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import google.generativeai as genai
 import azure.cognitiveservices.speech as speechsdk
@@ -644,6 +645,7 @@ def handle_request_report_audio(data):
     synthesize_speech(text, lang_code, sid, event_name='report_audio')
 
 
+
 @socketio.on('stop_translation')
 def handle_stop_translation():
     """Handles client-initiated stop."""
@@ -656,6 +658,23 @@ def handle_stop_translation():
         cleanup_chat_client_recognizer(sid, room_id)
     elif sid in clients: # It's a solo client
         cleanup_client(sid)
+
+@app.route('/summarize_transcript', methods=['POST'])
+def summarize_transcript():
+    """Receives transcript text and returns a summary."""
+    data = request.get_json()
+    text = data.get('text')
+    language = data.get('language')
+
+    if not text or not language:
+        return jsonify({'error': 'Missing text or language in request.'}), 400
+
+    summary = get_summary_from_text(text, language)
+
+    if "Error:" in summary:
+        return jsonify({'error': summary}), 500
+
+    return jsonify({'summary': summary})
 
 if __name__ == '__main__':
     logging.info("Starting Flask-SocketIO server.")

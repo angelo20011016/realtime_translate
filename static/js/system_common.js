@@ -22,6 +22,66 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
         });
     }
+
+    // === AI 總結 ===
+    const summarizeButton = document.getElementById('summarize-button');
+    if (summarizeButton) {
+        summarizeButton.addEventListener('click', async function() {
+            const reportDiv = document.getElementById('reportDisplay');
+            const transcriptText = reportDiv.innerText.trim();
+            const sourceLanguage = document.getElementById('sourceLanguage').value;
+
+            if (!transcriptText) {
+                alert('沒有內容可以總結。');
+                return;
+            }
+
+            // Show loading state
+            const originalButtonText = summarizeButton.textContent;
+            summarizeButton.textContent = '總結中...';
+            summarizeButton.disabled = true;
+
+            try {
+                const response = await fetch('/summarize_transcript', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        text: transcriptText, 
+                        language: sourceLanguage 
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to get summary.');
+                }
+
+                const data = await response.json();
+                const summary = data.summary;
+
+                // Append summary to the report display
+                const summaryContainer = document.createElement('div');
+                summaryContainer.className = 'text-container';
+                summaryContainer.innerHTML = `
+                    <hr>
+                    <h4 class="title-font" style="color: var(--accent-cyan);">AI Summary</h4>
+                    <p>${summary.replace(/\n/g, '<br>')}</p>
+                `;
+                reportDiv.appendChild(summaryContainer);
+                reportDiv.scrollTop = reportDiv.scrollHeight; // Scroll to the bottom
+
+            } catch (error) {
+                console.error('Summarization error:', error);
+                alert(`無法產生總結： ${error.message}`);
+            } finally {
+                // Restore button state
+                summarizeButton.textContent = originalButtonText;
+                summarizeButton.disabled = false;
+            }
+        });
+    }
 });
 /*
 This file contains the shared logic for all system audio modes.
