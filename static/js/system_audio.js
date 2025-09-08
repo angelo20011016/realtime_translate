@@ -5,30 +5,26 @@ document.addEventListener("DOMContentLoaded", () => {
     switch (selectedMode) {
         case 'translate':
             onFinalResult = handleTranslateFinalResult;
-            // No batch processing or generate button in this mode
-            onGenerateClick = () => {}; // Assign empty function to prevent errors
             onBatchResult = () => {};
             break;
         case 'summarize':
             onFinalResult = handleSummarizeFinalResult;
-            onGenerateClick = handleSummarizeGenerate;
             onBatchResult = handleSummarizeBatchResult;
             break;
         case 'interview':
             onFinalResult = handleInterviewFinalResult;
-            onGenerateClick = handleInterviewGenerate;
             onBatchResult = handleInterviewBatchResult;
             break;
         default:
-            // Fallback to translate mode
             onFinalResult = handleTranslateFinalResult;
             break;
     }
 
     // --- Initialize the application ---
-    // All these functions are defined in system_common.js
+    connectSocket();
     initializeEventListeners();
     setSettingsEnabled(true);
-    connectSocket();
     populateAudioInputDevices();
+
+    // (AI 建議功能的事件註冊已統一移至 system_common.js，這裡不再重複註冊)
 });

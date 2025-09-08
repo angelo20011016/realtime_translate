@@ -9,6 +9,7 @@ import time
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify
 from summary import get_summary_from_text
+from interview_coach import get_interview_feedback
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import google.generativeai as genai
 import azure.cognitiveservices.speech as speechsdk
@@ -675,6 +676,26 @@ def summarize_transcript():
         return jsonify({'error': summary}), 500
 
     return jsonify({'summary': summary})
+
+
+@socketio.on('get_ai_suggestion')
+def handle_get_ai_suggestion(data):
+    """Handles a request specifically for interview suggestions."""
+    sid = request.sid
+    transcript = data.get('transcript')
+    language = data.get('sourceLanguage')
+
+    if not transcript or not language:
+        socketio.emit('server_error', {"error": "Incomplete data for AI suggestion."}, room=sid)
+        return
+
+    logging.info(f"Generating AI suggestion for sid {sid}.")
+    feedback = get_interview_feedback(transcript, language)
+    
+    # Emit the result on a new, dedicated event
+    socketio.emit('ai_suggestion_result', {
+        "report": feedback
+    }, room=sid)
 
 if __name__ == '__main__':
     logging.info("Starting Flask-SocketIO server.")

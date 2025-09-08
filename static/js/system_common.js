@@ -152,6 +152,8 @@ function updateModeUI() {
     targetLanguageGroup.style.display = isTranslate ? 'block' : 'none';
     micSourceGroup.style.display = (isInterview || isSummarize) ? 'block' : 'none';
     ttsGroup.style.display = (isTranslate || isInterview) ? 'block' : 'none';
+    // New visibility logic for the dedicated AI Suggestion button
+    document.getElementById('aiSuggestionButton').style.display = isInterview ? 'block' : 'none';
     
     targetLanguageSelect.disabled = !isTranslate;
     audioSourceSelect.disabled = !(isInterview || isSummarize);
@@ -504,4 +506,61 @@ function initializeEventListeners() {
     });
     
     processingModeSelect.addEventListener('change', updateModeUI);
+
+    // --- New: AI Suggestion Button Listener (moved from system_interview.js) ---
+    const aiSuggestionButton = document.getElementById('aiSuggestionButton');
+    if (aiSuggestionButton) {
+        aiSuggestionButton.addEventListener('click', () => {
+            console.log("[DEBUG AI建議] Button clicked. Current mode:", processingModeSelect.value);
+            if (processingModeSelect.value !== 'interview') {
+                alert('AI 建議功能只在面試教練模式下可用。');
+                return;
+            }
+            // 若正在錄音，先強制送出 final result
+            if (isRecording && typeof forceSend === 'function') {
+                console.log('[DEBUG AI建議] 正在錄音，先 forceSend');
+                forceSend();
+                setTimeout(() => {
+                    if (!fullTranscript) {
+                        alert('沒有逐字稿可以提供建議。');
+                        return;
+                    }
+                    console.log("[DEBUG AI建議] Emitting 'get_ai_suggestion' event (after forceSend) .");
+                    statusDiv.textContent = '正在生成 AI 建議...';
+                    socket.emit('get_ai_suggestion', {
+                        transcript: fullTranscript,
+                        sourceLanguage: sourceLanguageSelect.value
+                    });
+                }, 500);
+            } else {
+                if (!fullTranscript) {
+                    alert('沒有逐字稿可以提供建議。');
+                    return;
+                }
+                console.log("[DEBUG AI建議] Emitting 'get_ai_suggestion' event.");
+                statusDiv.textContent = '正在生成 AI 建議...';
+                socket.emit('get_ai_suggestion', {
+                    transcript: fullTranscript,
+                    sourceLanguage: sourceLanguageSelect.value
+                });
+            }
+        });
+
+        // Listen for the dedicated result event (moved from system_interview.js)
+        socket.on('ai_suggestion_result', (data) => {
+            console.log("[DEBUG AI建議] Received 'ai_suggestion_result'. Current mode:", processingModeSelect.value);
+            if (processingModeSelect.value === 'interview') { // Only display if we are still in interview mode
+                // 不清空原本內容，直接 append
+                const suggestionContainer = document.createElement('div');
+                suggestionContainer.className = 'ai-suggestion-container';
+                suggestionContainer.innerHTML = `<hr><h4 class="title-font" style="color: var(--accent-cyan);">AI 建議</h4><p>${data.report.replace(/\n/g, '<br>')}</p>`;
+                reportDisplay.appendChild(suggestionContainer);
+                reportDisplay.scrollTop = reportDisplay.scrollHeight;
+                statusDiv.textContent = "AI 建議已生成。";
+            } else {
+                // 若收到結果時已經不在面試教練模式，不做任何事，保留原內容
+                console.log('[DEBUG AI建議] Result received but not in interview mode, ignore update.');
+            }
+        });
+    }
 }
