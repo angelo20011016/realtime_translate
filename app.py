@@ -21,7 +21,36 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-very-secret-key')
+
+try:
+    gemini_api_key = os.environ["GEMINI_API_KEY"]
+    genai.configure(api_key=gemini_api_key)
+except KeyError:
+    raise RuntimeError("GEMINI_API_KEY not found in .env file. Please add it.")
+
+# --- Google SSO (OAuth) Configuration ---
+from flask import session, url_for, redirect
+from authlib.integrations.flask_client import OAuth
+
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    access_token_url='https://accounts.google.com/o/oauth2/token',
+    access_token_params=None,
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    authorize_params=None,
+    api_base_url='https://www.googleapis.com/oauth2/v1/',
+    userinfo_endpoint='https://openidconnect.googleapis.com/v1/userinfo',
+    client_kwargs={'scope': 'openid email profile'},
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration'
+)
+# --- End of SSO Configuration ---
+
 socketio = SocketIO(app, async_mode='gevent', message_queue='redis://redis')
+
+
 
 # Add this block after socketio initialization
 # try:
@@ -33,13 +62,15 @@ socketio = SocketIO(app, async_mode='gevent', message_queue='redis://redis')
 # except Exception as e:
 #     logging.error(f"Redis connection failed: {e}")
 
-# --- Gemini API Configuration ---
-try:
-    gemini_api_key = os.environ["GEMINI_API_KEY"]
-    genai.configure(api_key=gemini_api_key)
-    model = genai.GenerativeModel(model_name="gemini-2.5-flash-lite")
-except KeyError:
-    raise RuntimeError("GEMINI_API_KEY not found in .env file. Please add it.")
+# --- End of Decorator ---
+from functools import wraps
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # --- Azure Speech SDK Configuration ---
 try:
@@ -76,12 +107,12 @@ sid_to_room = {}
 def handle_join_room(data):
     sid = request.sid
     room_id = data.get('roomId')
-    user_id = data.get('userId')
+    user_id = session.get('user', {}).get('name', 'Anonymous') # Get user name from session
     language = data.get('language')
     tts_enabled = data.get('ttsEnabled', False)
 
-    if not room_id or not user_id or not language:
-        emit('server_error', {'error': 'Room ID, User ID, and Language are required to join a room.'}, room=sid)
+    if not room_id or not language:
+        emit('server_error', {'error': 'Room ID and Language are required to join a room.'}, room=sid)
         return
 
     # Leave any previously joined room
@@ -379,16 +410,19 @@ def index():
     return render_template('mode_selection.html')
 
 @app.route('/solo')
+@login_required
 def solo_mode():
     """Serves the solo mode HTML page."""
     return render_template('solo.html')
 
 @app.route('/system')
+@login_required
 def system_mode():
     """Serves the system audio capture mode HTML page."""
     return render_template('system_audio.html')
 
 @app.route('/chat')
+@login_required
 def chat_mode():
     """Serves the chat mode HTML page."""
     return render_template('chat.html')
@@ -696,6 +730,43 @@ def handle_get_ai_suggestion(data):
     socketio.emit('ai_suggestion_result', {
         "report": feedback
     }, room=sid)
+
+
+# --- SSO Routes ---
+@app.route('/login')
+def login():
+    """Redirects the user to Google's OAuth 2.0 server."""
+    # The redirect_uri must match the one configured in the Google Cloud Console
+    redirect_uri = url_for('auth_callback', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/auth/google/callback')
+def auth_callback():
+    """Handles the authentication callback from Google."""
+    try:
+        token = google.authorize_access_token()
+        resp = google.get('userinfo')
+        user_info = resp.json()
+        if user_info:
+            session['user'] = user_info
+            logging.info(f"User {user_info.get('email')} logged in successfully.")
+        else:
+            logging.error("Could not fetch user info from Google.")
+            return "Failed to fetch user info.", 500
+    except Exception as e:
+        logging.error(f"Error during Google OAuth callback: {e}")
+        return "Authentication failed.", 500
+    return redirect('/')
+
+@app.route('/logout')
+def logout():
+    """Logs the user out by clearing the session."""
+    user_email = session.get('user', {}).get('email', 'Unknown user')
+    session.pop('user', None)
+    logging.info(f"User {user_email} logged out.")
+    return redirect('/')
+# --- End of SSO Routes ---
+
 
 if __name__ == '__main__':
     logging.info("Starting Flask-SocketIO server.")

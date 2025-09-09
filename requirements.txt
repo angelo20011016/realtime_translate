@@ -55,3 +55,4 @@ uvicorn
 redis
 dnspython
 
+Authlib 

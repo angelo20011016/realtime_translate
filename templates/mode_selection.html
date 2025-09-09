@@ -77,9 +77,47 @@
             box-shadow: 0 5px 25px rgba(0, 0, 0, 0.7);
             filter: brightness(1.1);
         }
+        .user-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background-color: var(--primary-bg);
+            padding: 10px 15px;
+            border-radius: 25px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.4);
+        }
+        .user-info img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+        }
+        .user-info span {
+            font-weight: 500;
+        }
+        .user-info a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .user-info a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
+    <div class="user-info">
+        {% if session.user %}
+            <img src="{{ session.user.picture }}" alt="{{ session.user.name }}">
+            <span>{{ session.user.name }}</span>
+            <a href="/logout">Logout</a>
+        {% else %}
+            <a href="/login">Login with Google</a>
+        {% endif %}
+    </div>
+
     <div class="mode-selection-container">
         <h1>Choose Your Mode</h1>
         <a href="/solo" class="mode-button solo">Mic Mode</a>
