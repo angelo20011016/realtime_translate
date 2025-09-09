@@ -736,8 +736,14 @@ def handle_get_ai_suggestion(data):
 @app.route('/login')
 def login():
     """Redirects the user to Google's OAuth 2.0 server."""
-    # The redirect_uri must match the one configured in the Google Cloud Console
-    redirect_uri = url_for('auth_callback', _external=True)
+    # Check if the app is running in development (e.g., on localhost)
+    if 'localhost' in request.host_url or '127.0.0.1' in request.host_url:
+        # Use the localhost redirect URI for development
+        redirect_uri = 'http://localhost:5002/auth/google/callback'
+    else:
+        # Use the production redirect URI for all other cases
+        redirect_uri = 'https://happywecan.com/auth/google/callback'
+    
     return google.authorize_redirect(redirect_uri)
 
 @app.route('/auth/google/callback')
