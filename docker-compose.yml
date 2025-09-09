@@ -19,12 +19,12 @@ services:
     container_name: redis_cache
     restart: unless-stopped
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared_tunnel
-    command: tunnel --no-autoupdate run myapp
-    volumes:
-      - ~/.cloudflared:/etc/cloudflared
-    restart: unless-stopped
-    depends_on:
-      - app
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: cloudflared_tunnel
+  #   command: tunnel --no-autoupdate run myapp
+  #   volumes:
+  #     - ~/.cloudflared:/etc/cloudflared
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - app

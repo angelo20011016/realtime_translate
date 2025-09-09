@@ -11,5 +11,14 @@ services:
         sync: false
       - key: AZURE_SPEECH_REGION
         sync: false
+      - key: SECRET_KEY
+        generateValue: true # Let Render generate a random, secure key
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: happywecan-redis
     customDomains:
       - name: happywecan.com
+  - type: redis
+    name: happywecan-redis
+    plan: free

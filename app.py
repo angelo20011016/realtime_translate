@@ -21,7 +21,9 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-very-secret-key')
-socketio = SocketIO(app, async_mode='gevent', message_queue='redis://redis')
+# Use REDIS_URL from environment if available, otherwise fall back to local redis
+redis_url = os.getenv('REDIS_URL', 'redis://redis')
+socketio = SocketIO(app, async_mode='gevent', message_queue=redis_url)
 
 # Add this block after socketio initialization
 # try:
