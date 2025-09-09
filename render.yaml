@@ -17,8 +17,6 @@ services:
         fromService:
           type: redis
           name: happywecan-redis
-    customDomains:
-      - name: happywecan.com
   - type: redis
     name: happywecan-redis
     plan: free
