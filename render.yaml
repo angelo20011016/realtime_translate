@@ -3,7 +3,6 @@ services:
     name: happywecan-app
     plan: free
     runtime: docker
-    startCommand: "bash -c 'PYTHONPATH=. gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker -b 0.0.0.0:$PORT app:app'"
     envVars:
       - key: GEMINI_API_KEY
         sync: false
@@ -17,6 +16,10 @@ services:
         fromService:
           type: redis
           name: happywecan-redis
+          property: connectionString
   - type: redis
     name: happywecan-redis
     plan: free
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Allow internal Render services to connect
