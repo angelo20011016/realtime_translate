@@ -3,7 +3,8 @@ import os
 import google.generativeai as genai
 import logging
 
-# Configure the Gemini model specifically for the coach
+
+# 只建立 Gemini model，不再 configure（已於 app.py 全域 configure）
 try:
     model = genai.GenerativeModel(model_name="gemini-2.5-flash-lite")
 except Exception as e:
