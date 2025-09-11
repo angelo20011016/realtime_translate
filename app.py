@@ -1,4 +1,3 @@
-
 from gevent import monkey
 monkey.patch_all()
 import redis
@@ -7,7 +6,8 @@ import json
 import logging
 import time
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from authlib.integrations.flask_client import OAuth
 from summary import get_summary_from_text
 from interview_coach import get_interview_feedback
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -25,21 +25,30 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a-very-secret-key')
 redis_url = os.getenv('REDIS_URL', 'redis://redis')
 socketio = SocketIO(app, async_mode='gevent', message_queue=redis_url)
 
-# Add this block after socketio initialization
-# try:
-#     r = redis.Redis(host='redis', port=6379, db=0)
-#     r.ping()
-#     r.set('test_key', 'test_value')
-#     test_value = r.get('test_key')
-#     logging.info(f"Redis connection successful! test_key: {test_value.decode()}")
-# except Exception as e:
-#     logging.error(f"Redis connection failed: {e}")
+# --- OAuth Configuration ---
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    access_token_url='https://accounts.google.com/o/oauth2/token',
+    access_token_params=None,
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    authorize_params=None,
+    api_base_url='https://www.googleapis.com/oauth2/v1/',
+    userinfo_endpoint='https://openidconnect.googleapis.com/v1/userinfo',
+    client_kwargs={'scope': 'openid email profile'},
+    jwks_uri="https://www.googleapis.com/oauth2/v3/certs",
+)
 
 # --- Gemini API Configuration ---
 try:
     gemini_api_key = os.environ["GEMINI_API_KEY"]
     genai.configure(api_key=gemini_api_key)
-    model = genai.GenerativeModel(model_name="gemini-2.5-flash-lite")
+    model = genai.GenerativeModel(model_name="gemini-1.5-flash-latest")
 except KeyError:
     raise RuntimeError("GEMINI_API_KEY not found in .env file. Please add it.")
 
@@ -73,6 +82,35 @@ rooms = {}
 
 # Dictionary to map sid to room_id
 sid_to_room = {}
+
+@app.route('/')
+def index():
+    user = session.get('user')
+    if user:
+        return render_template('mode_selection.html', user=user)
+    return redirect(url_for('login_page'))
+
+@app.route('/login_page')
+def login_page():
+    return render_template('login.html')
+
+@app.route('/login')
+def login():
+    redirect_uri = 'http://localhost:5002/authorize'
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/authorize')
+def authorize():
+    token = google.authorize_access_token()
+    user_info = google.get('userinfo').json()
+    session['user'] = user_info
+    return redirect('/')
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect('/')
+
 
 @socketio.on('join_room')
 def handle_join_room(data):
@@ -375,24 +413,25 @@ def handle_chat_final_recognition(evt, sid, room_id, sender_user_id):
         }, room=recipient_sid)
 
 
-@app.route('/')
-def index():
-    """Serves the mode selection page."""
-    return render_template('mode_selection.html')
-
 @app.route('/solo')
 def solo_mode():
     """Serves the solo mode HTML page."""
+    if 'user' not in session:
+        return redirect('/')
     return render_template('solo.html')
 
 @app.route('/system')
 def system_mode():
     """Serves the system audio capture mode HTML page."""
+    if 'user' not in session:
+        return redirect('/')
     return render_template('system_audio.html')
 
 @app.route('/chat')
 def chat_mode():
     """Serves the chat mode HTML page."""
+    if 'user' not in session:
+        return redirect('/')
     return render_template('chat.html')
 
 @socketio.on('connect')
