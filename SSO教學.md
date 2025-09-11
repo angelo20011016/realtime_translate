@@ -115,7 +115,7 @@ def login_page():
 @app.route('/login')
 def login():
     # 在 Docker 環境中，我們手動指定 redirect_uri 以確保網址正確
-    redirect_uri = 'http://localhost:5002/authorize'
+    redirect_uri = 'http://happywecan.com/authorize'
     return google.authorize_redirect(redirect_uri)
 
 @app.route('/authorize')

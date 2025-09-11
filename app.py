@@ -96,7 +96,7 @@ def login_page():
 
 @app.route('/login')
 def login():
-    redirect_uri = 'http://localhost:5002/authorize'
+    redirect_uri = 'http://happywecan.com/authorize'
     return google.authorize_redirect(redirect_uri)
 
 @app.route('/authorize')
