@@ -56,3 +56,4 @@ redis
 dnspython
 
 Authlib 
+Flask-SQLAlchemy 
