@@ -9,7 +9,7 @@ def init_routes(app):
         user = session.get('user')
         if user:
             return render_template('mode_selection.html', user=user)
-        return redirect(url_for('auth.login_page'))
+        return redirect(url_for('auth.login'))
 
     @main_bp.route('/login_page')
     def login_page():
