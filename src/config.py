@@ -40,7 +40,7 @@ google = oauth.register(
 try:
     gemini_api_key = os.environ["GEMINI_API_KEY"]
     genai.configure(api_key=gemini_api_key)
-    model = genai.GenerativeModel(model_name="gemini-1.5-flash-latest")
+    model = genai.GenerativeModel(model_name="gemini-2.5-flash-lite")
 except KeyError:
     raise RuntimeError("GEMINI_API_KEY not found in .env file. Please add it.")
 
@@ -57,10 +57,12 @@ speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_re
 LANGUAGE_VOICES = {
     "en-US": "en-US-JennyNeural",
     "zh-TW": "zh-TW-HsiaoChenNeural",
-    "ja-JP": "ja-JP-NanamiNeural"
+    "ja-JP": "ja-JP-NanamiNeural",
+    "fr-FR": "fr-FR-DeniseNeural"
 }
 LANGUAGE_NAMES = {
     "en-US": "English",
     "zh-TW": "Traditional Chinese",
-    "ja-JP": "Japanese"
+    "ja-JP": "Japanese",
+    "fr-FR": "French"
 }
