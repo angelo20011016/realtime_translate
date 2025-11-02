@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Translator</title>
-    <!-- Google Fonts for a modern, clean look -->
+    <title>Conversation Mode</title>
+    <!-- Google Fonts, Bootstrap, and Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons (only for sidebar toggle) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Main Stylesheet (reusing from solo.html) -->
     <style>
         /* --- Color Palette: Comfortable, Modern, with Subtle Accents --- */
         :root {
@@ -436,35 +435,94 @@
                 display: none;
             }
         }
+
+        /* Updated styles for conversation mode */
+        .language-selector-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px; /* Reduced gap */
+            padding: 0 10px; /* Add padding for mobile */
+        }
+        #swapButton {
+            font-size: 1.2rem; /* Slightly smaller */
+            cursor: pointer;
+            color: var(--accent-cyan);
+            transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
+            flex-shrink: 0;
+        }
+        #swapButton:hover {
+            transform: scale(1.2) rotate(180deg);
+            color: var(--accent-pink);
+        }
+        .chat-display {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: var(--secondary-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border-color-subtle);
+        }
+        .chat-bubble {
+            max-width: 85%;
+            width: fit-content; /* Make bubble adapt to content width */
+            padding: 8px 14px;
+            border-radius: 16px;
+            margin-bottom: 8px; /* Reduced margin */
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .chat-bubble.bubble-left {
+            background-color: var(--input-bg);
+            color: var(--text-light);
+            margin-right: auto;
+            align-items: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .chat-bubble.bubble-right {
+            background-color: var(--accent-purple);
+            color: var(--text-light);
+            margin-left: auto;
+            align-items: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .chat-bubble p {
+            margin: 0;
+            padding: 0;
+        }
+        .bubble-original-text {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .bubble-translated-text {
+            font-weight: 400;
+            font-size: 0.85rem;
+            opacity: 0.85;
+            margin-top: 4px;
+        }
+        .chat-bubble.interim {
+            opacity: 0.6;
+            font-style: italic;
+        }
+        .chat-bubble.bubble-right .bubble-original-text,
+        .chat-bubble.bubble-right .bubble-translated-text {
+            text-align: right;
+        }
+
+        #recordButton {
+            width: 100%;
+            max-width: 400px;
+            margin: 15px auto 0 auto; /* Reduced margin */
+        }
+
     </style>
 </head>
 <body>
     <div class="main-wrapper">
-        <!-- Settings Sidebar -->
+        <!-- Settings Sidebar (for Mic, TTS, etc.) -->
         <div id="settings-sidebar" class="settings-sidebar">
-            <h1><a href="/" style="color: inherit; text-decoration: none;">Translator Settings</a></h1>
-
-            <!-- Source Language Control -->
-            <div class="control-group">
-                <label for="sourceLanguage">Input Language</label>
-                <select id="sourceLanguage" class="form-select">
-                    <option value="en-US">English</option>
-                    <option value="zh-TW" selected>Chinese (Traditional)</option>
-                    <option value="ja-JP">Japanese</option>
-                    <option value="fr-FR">French</option>
-                </select>
-            </div>
-
-            <!-- Target Language Control -->
-            <div class="control-group">
-                <label for="targetLanguage">Output Language</label>
-                <select id="targetLanguage" class="form-select">
-                    <option value="zh-TW">Chinese (Traditional)</option>
-                    <option value="en-US" selected>English</option>
-                    <option value="ja-JP">Japanese</option>
-                    <option value="fr-FR">French</option>
-                </select>
-            </div>
+            <h1><a href="/" style="color: inherit; text-decoration: none;">Settings</a></h1>
 
             <!-- Audio Source Control -->
             <div class="control-group">
@@ -485,36 +543,47 @@
                 <div id="vu-meter"><div id="vu-meter-level"></div></div>
             </div>
 
-            <!-- Record Button -->
-            <button id="recordButton" class="btn">Start Translation</button>
-
             <!-- Status Message -->
-            <div id="status" class="status mt-2">Ready for input...</div>
+            <div id="status" class="status mt-auto">Select languages and start talking.</div>
         </div>
-
-        <!-- Sidebar Overlay -->
-        <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
         <!-- Main Content Area -->
         <main class="content-main">
             <!-- Sidebar Toggle Button -->
             <button id="sidebar-toggle"><i class="bi bi-list"></i></button>
 
-            <!-- Main Title -->
-            <h1 class="title-font">Real-time Translation</h1>
-
-            <!-- Conversation History Title -->
-            <h1 class="mt-3 title-font">Conversation Log</h1>
-
-            <!-- Conversation Display for translated history -->
-            <div id="conversationDisplay" class="conversation-history">
-                <!-- Translated conversation will appear here -->
+            <!-- Language Selection -->
+            <div class="language-selector-container">
+                <select id="languageA" class="form-select">
+                    <option value="en-US">English</option>
+                    <option value="zh-TW" selected>Chinese (Traditional)</option>
+                    <option value="ja-JP">Japanese</option>
+                    <option value="fr-FR">French</option>
+                </select>
+                <i id="swapButton" class="bi bi-arrow-left-right"></i>
+                <select id="languageB" class="form-select">
+                    <option value="zh-TW">Chinese (Traditional)</option>
+                    <option value="en-US">English</option>
+                    <option value="ja-JP" selected>Japanese</option>
+                    <option value="fr-FR">French</option>
+                </select>
             </div>
+
+            <!-- Chat Display -->
+            <div id="chatDisplay" class="chat-display">
+                <!-- Chat bubbles will be appended here -->
+            </div>
+
+            <!-- Record Button -->
+            <button id="recordButton" class="btn">
+                <i class="bi bi-mic-fill"></i>
+                <span>Start Recording</span>
+            </button>
         </main>
     </div>
 
     <!-- Scripts -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/system_conversation.js"></script>
 </body>
 </html>

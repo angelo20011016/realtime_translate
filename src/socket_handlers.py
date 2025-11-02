@@ -144,6 +144,7 @@ def register_handlers(socketio, model, speech_key, speech_region, speech_config,
             logging.warning(f"Could not find client info for sid {sid}")
             return
 
+        source_lang = client_info['source_lang']
         target_lang = client_info['target_lang']
         tts_enabled = client_info['tts_enabled']
 
@@ -155,7 +156,9 @@ def register_handlers(socketio, model, speech_key, speech_region, speech_config,
             
             socketio.emit('final_result', {
                 "original": text,
-                "refined": refined_text
+                "refined": refined_text,
+                "source_lang": source_lang,
+                "target_lang": target_lang
             }, room=sid)
 
             if tts_enabled:

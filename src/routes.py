@@ -36,6 +36,13 @@ def init_routes(app):
             return redirect(url_for('auth.login_page'))
         return render_template('chat.html')
 
+    @main_bp.route('/conversation')
+    def conversation_mode():
+        """Serves the conversation mode HTML page."""
+        if 'user' not in session:
+            return redirect(url_for('auth.login'))
+        return render_template('conversation.html')
+
     @main_bp.route('/summarize_transcript', methods=['POST'])
     def summarize_transcript():
         """Receives transcript text and returns a summary."""

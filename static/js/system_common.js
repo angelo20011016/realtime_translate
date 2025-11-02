@@ -202,13 +202,23 @@ function connectSocket() {
     });
 
     socket.on('interim_result', (data) => {
-        transcriptDisplay.innerHTML = `<p class="original-text">${data.text}</p>`;
-        transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+        if (processingModeSelect.value !== 'translate') return; // Only apply to translate mode
+        let interimBubble = document.getElementById('interim-bubble');
+        if (!interimBubble) {
+            interimBubble = document.createElement('div');
+            interimBubble.id = 'interim-bubble';
+            interimBubble.classList.add('text-container', 'interim'); // Add a class for styling
+            reportDisplay.appendChild(interimBubble);
+        }
+        interimBubble.innerHTML = `<p class="original-text">${data.text}</p>`;
+        reportDisplay.scrollTop = reportDisplay.scrollHeight;
     });
 
     socket.on('final_result', (data) => {
         lastAudioTime = Date.now();
-        transcriptDisplay.innerHTML = "";
+        const interimBubble = document.getElementById('interim-bubble');
+        if (interimBubble) interimBubble.remove();
+        
         fullTranscript += data.original + " ";
         onFinalResult(data); // Delegate to mode-specific handler
     });

@@ -93,13 +93,23 @@ document.addEventListener("DOMContentLoaded", () => {
             sendSettings(); // Send initial settings on connect
         });
 
-                socket.on('interim_result', (data) => {
-            interimDisplay.innerHTML = `<div class="text-container"><p class="original-text">${data.text}</p></div>`;
+        socket.on('interim_result', (data) => {
+            let interimBubble = document.getElementById('interim-bubble');
+            if (!interimBubble) {
+                interimBubble = document.createElement('div');
+                interimBubble.id = 'interim-bubble';
+                interimBubble.classList.add('text-container', 'interim'); // Add a class for styling
+                conversationDisplay.appendChild(interimBubble);
+            }
+            interimBubble.innerHTML = `<p class="original-text">${data.text}</p>`;
+            conversationDisplay.scrollTop = conversationDisplay.scrollHeight;
         });
 
         socket.on('final_result', (data) => {
             lastAudioTime = Date.now();
-            interimDisplay.textContent = "";
+            const interimBubble = document.getElementById('interim-bubble');
+            if (interimBubble) interimBubble.remove();
+
             if (!data.original) return;
 
             const entryDiv = document.createElement('div');
@@ -274,7 +284,6 @@ document.addEventListener("DOMContentLoaded", () => {
         recordButton.textContent = "Stop Recording";
         recordButton.classList.add("recording");
         statusDiv.textContent = "Requesting microphone access...";
-        interimDisplay.textContent = "Listening...";
         setSettingsEnabled(false);
 
         lastAudioTime = Date.now();
