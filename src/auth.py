@@ -8,7 +8,15 @@ def init_auth(app, oauth):
 
     @auth_bp.route('/login')
     def login():
-        redirect_uri = os.getenv('REDIRECT_URI', 'http://localhost:5000/authorize')
+        is_dev_mode = os.getenv('DEV_MODE') == 'true'
+        
+        if is_dev_mode:
+            # In development mode, use the local redirect_uri
+            redirect_uri = 'http://localhost:5002/authorize'
+        else:
+            # In production mode, read the production redirect_uri from environment variables
+            redirect_uri = os.getenv('PROD_REDIRECT_URI', 'https://happywecan.com/authorize')
+                
         return oauth.google.authorize_redirect(redirect_uri)
 
     @auth_bp.route('/authorize')
