@@ -1,665 +1,199 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="light" lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Real-time Chat Translator</title>
-    <!-- Google Fonts for a modern, clean look -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons (only for sidebar toggle) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#B91C1C",
+                        "primary-dark": "#991B1B",
+                        "primary-light": "#FEE2E2",
+                        "background-light": "#ffffff",
+                        "background-sidebar": "#f8fafc",
+                        "surface-light": "#ffffff",
+                        "surface-border": "#e2e8f0",
+                        "surface-hover": "#f1f5f9",
+                        "text-main": "#0f172a",
+                        "text-muted": "#64748b",
+                    },
+                    fontFamily: { "display": ["Spline Sans", "sans-serif"] },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
     <style>
-        /* --- Color Palette: Comfortable, Modern, with Subtle Accents --- */
-        :root {
-            --dark-bg: #181a2f;
-            --primary-bg: #20243b;
-            --secondary-bg: #151a2a;
-            --accent-cyan: #4fd1c5; /* Soft Cyan/Teal */
-            --accent-purple: #9f7aea; /* Muted Purple */
-            --accent-pink: #f6ad55; /* Warm Coral/Orange */
-            --text-light: #e2e8f0;
-            --text-muted: #a0aec0;
-
-            /* Enhanced Variables for Visual Harmony */
-            --input-bg: #2d3748;
-            --border-color-subtle: rgba(79, 209, 197, 0.2);
-            --focus-glow: rgba(79, 209, 197, 0.3);
-            --button-glow-start: rgba(159, 122, 234, 0.6);
-            --button-glow-active: rgba(246, 173, 85, 0.6);
-            --element-hover-brightness: 1.15;
-            --shadow-soft: rgba(0, 0, 0, 0.3);
-            --neon-text-shadow: 0 0 8px rgba(79, 209, 197, 0.5);
-            --cursor-glow-color: var(--accent-cyan); /* Color for cursor effects */
-        }
-
-        /* --- Font Setup --- */
-        body {
-            font-family: 'Inter', sans-serif; /* Modern Sans-serif for body text */
-        }
-        h1, h2, h3, h4, h5, h6, .title-font {
-            font-family: 'Orbitron', sans-serif; /* Techy font for titles and important headings */
-            font-weight: 600;
-        }
-        .display-font { /* For larger, impactful text if needed */
-             font-family: 'Orbitron', sans-serif;
-             font-weight: 700;
-        }
-
-        /* --- Global Styles --- */
-        body, html {
-            height: 100%;
-            background-color: var(--dark-bg);
-            color: var(--text-light);
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            box-sizing: border-box;
-        }
-        *, *:before, *:after {
-            box-sizing: inherit;
-        }
-
-        /* --- Layout Wrapper --- */
-        .main-wrapper {
-            display: flex;
-            height: 100vh;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* --- Sidebar Styles --- */
-        .settings-sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 300px;
-            height: 100%;
-            background-color: var(--secondary-bg);
-            padding: 30px;
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-            border-right: 1px solid var(--border-color-subtle);
-            transform: translateX(-100%);
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .icon-filled { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Sidebar specific transition */
+        .sidebar {
             transition: transform 0.3s ease-in-out;
-            z-index: 1050;
-            overflow-y: auto;
-            box-shadow: 3px 0 15px var(--shadow-soft);
         }
-
-        .settings-sidebar.open {
-            transform: translateX(0);
-        }
-
-        .settings-sidebar h1 {
-            font-size: 1.8rem;
-            color: var(--accent-cyan);
-            text-align: center;
-            margin-bottom: 20px;
-            text-shadow: var(--neon-text-shadow);
-            font-weight: 600;
-        }
-
-        /* --- Control Group Styling --- */
-        .control-group {
-            margin-bottom: 20px;
-        }
-        .control-group label {
-            color: var(--text-muted);
-            font-weight: 500;
-            display: block;
-            margin-bottom: 10px;
-            font-size: 0.95rem;
-            transition: color 0.25s ease-in-out, text-shadow 0.25s ease-in-out;
-            cursor: pointer;
-        }
-        .control-group label:hover {
-            color: var(--accent-cyan);
-            text-shadow: var(--neon-text-shadow);
-        }
-
-        /* Inputs and Selects - Clean Modern Style */
-        .form-select,
-        .form-control {
-            background-color: var(--input-bg);
-            color: var(--text-light);
-            border: 1px solid var(--input-bg);
-            border-radius: 6px;
-            padding: 10px 15px;
-            font-size: 1rem;
-            transition: border-color 0.25s ease-in-out, box-shadow 0.25s ease-in-out, transform 0.2s ease-in-out;
-            cursor: pointer;
-        }
-
-        .form-select:focus,
-        .form-control:focus {
-            border-color: var(--accent-cyan);
-            box-shadow: 0 0 0 0.25rem var(--focus-glow);
-            outline: none;
-            transform: translateY(-1px);
-        }
-        .form-select:hover,
-        .form-control:hover {
-            border-color: var(--accent-cyan);
-            filter: brightness(var(--element-hover-brightness));
-        }
-
-        /* Custom Switch Styling */
-        .form-check-input[type="checkbox"] {
-            background-color: var(--accent-purple);
-            border-color: var(--accent-purple);
-            width: 45px;
-            height: 24px;
-            border-radius: 12px;
-            transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
-        }
-        .form-check-input[type="checkbox"]:checked {
-            background-color: var(--accent-pink);
-            border-color: var(--accent-pink);
-        }
-        .form-check-input[type="checkbox"]:focus {
-            box-shadow: 0 0 0 0.25rem var(--focus-glow);
-        }
-        .form-check-label {
-            color: var(--text-light);
-            cursor: pointer;
-            font-size: 1rem;
-            padding-left: 8px;
-            transition: color 0.25s ease-in-out;
-        }
-        .form-check-label:hover {
-            color: var(--accent-cyan);
-        }
-
-        /* VU Meter Styling */
-        .vu-meter-container {
-            margin-top: 20px;
-            position: relative;
-        }
-        #vu-meter {
-            width: 100%;
-            height: 10px;
-            background-color: var(--input-bg);
-            border-radius: 5px;
-            border: 1px solid var(--input-bg);
-            overflow: hidden;
-        }
-        #vu-meter-level {
-            height: 100%;
-            background-color: var(--accent-cyan);
-            transition: width 0.05s linear;
-            box-shadow: 0 0 6px var(--accent-cyan);
-            border-radius: 5px;
-        }
-
-        /* Record Button Styling */
-        #recordButton {
-            background: linear-gradient(to right, var(--accent-purple), var(--accent-pink));
-            box-shadow: 0 0 10px var(--button-glow-start);
-            margin-top: auto;
-            border: none;
-            color: var(--text-light);
-            font-weight: 600;
-            font-size: 1.15rem;
-            padding: 12px 18px;
-            border-radius: 8px;
-            transition: background 0.3s ease-in-out, box-shadow 0.3s ease-in-out, transform 0.2s ease-in-out;
-            cursor: pointer;
-            letter-spacing: 0.5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-        #recordButton.recording {
-            background: linear-gradient(to right, var(--accent-pink), var(--accent-cyan));
-            box-shadow: 0 0 10px var(--button-glow-active);
-        }
-        #recordButton:hover {
-            box-shadow: 0 0 18px var(--button-glow-start);
-            transform: scale(1.02);
-        }
-        #recordButton.recording:hover {
-            box-shadow: 0 0 18px var(--button-glow-active);
-            transform: scale(1.02);
-        }
-
-        /* Status Message */
-        #status {
-            color: var(--text-muted);
-            min-height: 40px;
-            font-size: 0.9rem;
-            text-align: center;
-            line-height: 1.4;
-            opacity: 0.85;
-        }
-
-        /* --- Main Content Area --- */
-        .content-main {
-            width: 100%;
-            height: 100%;
-            padding: 35px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            background-color: var(--primary-bg);
-            transition: margin-left 0.3s ease-in-out;
-            overflow-y: auto;
-            box-shadow: -2px 0 10px var(--shadow-soft);
-        }
-
-        /* Sidebar Toggle Button */
-        #sidebar-toggle {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1060;
-            font-size: 1.8rem;
-            color: var(--accent-cyan);
-            background: none;
-            border: none;
-            transition: color 0.25s ease-in-out, transform 0.25s ease-in-out;
-            cursor: pointer;
-            padding: 5px;
-            text-shadow: var(--neon-text-shadow);
-        }
-
-        #sidebar-toggle:hover {
-            color: var(--accent-pink);
-            transform: scale(1.1);
-        }
-
-        /* Main Titles in Content */
-        .content-main h1 {
-            font-size: 2.2rem;
-            color: var(--accent-cyan);
-            text-shadow: var(--neon-text-shadow);
-            margin-bottom: 15px;
-            font-weight: 600;
-            text-align: center;
-            transition: color 0.25s ease-in-out, text-shadow 0.25s ease-in-out;
-            cursor: default;
-        }
-        .content-main h1.mt-3 {
-             margin-top: 25px !important;
-        }
-
-        /* Display Boxes - Interim and Conversation WITH ELECTRIC CURRENT EFFECTS */
-        .interim-display-box,
-        .conversation-history {
-            background-color: var(--primary-bg);
-            border: 1px solid var(--border-color-subtle);
-            border-radius: 8px;
-            padding: 18px;
-            overflow: hidden; /* Crucial for positioning absolute pseudo-elements */
-            font-size: 1.05rem;
-            line-height: 1.6;
-            color: var(--text-light);
-            box-shadow: 0 0 10px rgba(79, 209, 197, 0.15);
-            transition: box-shadow 0.3s ease-in-out;
-            position: relative; /* Required for absolute positioning of ::before/::after */
-        }
-        .interim-display-box:hover,
-        .conversation-history:hover {
-            box-shadow: 0 0 15px rgba(79, 209, 197, 0.3);
-        }
-
-        /* --- Electric Current Effects for Dialogue Boxes --- */
-
-        /* Common styles for the current effect */
-        .interim-display-box::before,
-        .conversation-history::before,
-        .interim-display-box::after,
-        .conversation-history::after {
-            content: '';
-            position: absolute;
-            background: radial-gradient(circle, rgba(79, 209, 197, 0.6) 5%, transparent 40%); /* Cyan glow */
-            opacity: 0;
-            transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
-            pointer-events: none; /* Allow clicks to pass through */
-            z-index: 0; /* Behind text content */
-        }
-
-        /* Current effect for interim display */
-        .interim-display-box::before {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            top: 10%;
-            left: 15%;
-            transform: scale(0);
-        }
-        .interim-display-box::after {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            top: 70%;
-            right: 10%;
-            transform: scale(0);
-            background: radial-gradient(circle, rgba(246, 173, 85, 0.5) 5%, transparent 40%); /* Coral glow */
-        }
-
-        /* Current effect for conversation history */
-        .conversation-history::before {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            top: 20%;
-            right: 10%;
-            transform: scale(0);
-            background: radial-gradient(circle, rgba(159, 122, 234, 0.5) 5%, transparent 40%); /* Purple glow */
-        }
-        .conversation-history::after {
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            top: 60%;
-            left: 10%;
-            transform: scale(0);
-        }
-
-        /* Trigger effect on hover */
-        .interim-display-box:hover::before,
-        .interim-display-box:hover::after,
-        .conversation-history:hover::before,
-        .conversation-history:hover::after {
-            opacity: 1;
-            transform: scale(1.2); /* Scale up effect */
-        }
-        /* Subtle animation on ::before elements when active */
-        .interim-display-box:hover::before {
-            animation: pulse 2s infinite ease-in-out alternate;
-        }
-        .conversation-history:hover::before {
-             animation: pulse-purple 2s infinite ease-in-out alternate;
-        }
-
-
-        /* Text Styling within Display Boxes - interactive */
-        .original-text, .translated-text {
-            font-weight: 600;
-            transition: color 0.25s ease-in-out, text-shadow 0.25s ease-in-out;
-            cursor: default;
-        }
-        .original-text:hover {
-            color: var(--accent-cyan);
-            text-shadow: var(--neon-text-shadow);
-        }
-        .translated-text:hover {
-            color: var(--accent-pink);
-            text-shadow: 0 0 8px rgba(246, 173, 85, 0.5);
-        }
-
-        /* --- Keyframe Animations for Current Effects --- */
-        @keyframes pulse {
-            0% { opacity: 0.6; transform: scale(1.0); filter: blur(5px); }
-            50% { opacity: 1; transform: scale(1.2); filter: blur(8px); }
-            100% { opacity: 0.6; transform: scale(1.0); filter: blur(5px); }
-        }
-        @keyframes pulse-purple {
-            0% { opacity: 0.5; transform: scale(1.0); filter: blur(5px); }
-            50% { opacity: 0.8; transform: scale(1.2); filter: blur(8px); }
-            100% { opacity: 0.5; transform: scale(1.0); filter: blur(5px); }
-        }
-
-
-        /* --- Media Query for Desktop View --- */
-        @media (min-width: 992px) {
-            .settings-sidebar {
-                transform: translateX(0);
-            }
-            .content-main {
-                margin-left: 300px;
-                box-shadow: -2px 0 10px var(--shadow-soft);
-            }
-            #sidebar-toggle {
-                display: none;
-            }
-        }
-
-        /* --- Chat Specific Styles --- */
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            padding: 20px;
-            background-color: var(--primary-bg);
-            border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
-        }
-
-        .chat-messages {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 10px;
-            border: 1px solid var(--border-color-subtle);
-            border-radius: 8px;
-            margin-bottom: 15px;
-            background-color: var(--secondary-bg);
-        }
-
-        .message-bubble {
-            display: flex;
-            margin-bottom: 10px;
-            max-width: 80%;
-        }
-
-        .message-bubble.sent {
-            margin-left: auto;
-            justify-content: flex-end;
-        }
-
-        .message-bubble.received {
-            margin-right: auto;
-            justify-content: flex-start;
-        }
-
-        .message-content {
-            padding: 10px 15px;
-            border-radius: 15px;
-            line-height: 1.4;
-            word-wrap: break-word;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }
-
-        .message-bubble.sent .message-content {
-            background-color: var(--accent-purple);
-            color: var(--text-light);
-            border-bottom-right-radius: 2px;
-        }
-
-        .message-bubble.received .message-content {
-            background-color: var(--input-bg);
-            color: var(--text-light);
-            border-bottom-left-radius: 2px;
-        }
-
-        .message-content p {
-            margin: 0;
-            padding: 2px 0;
-        }
-
-        .message-content .original-text {
-            font-weight: 500;
-            color: var(--text-light);
-        }
-
-        .message-content .translated-text {
-            font-size: 1.25rem;
-            color: var(--accent-pink);
-            text-shadow: 0 0 8px rgba(246, 173, 85, 0.5);
-        }
-
-        .user-list-container {
-            background-color: var(--secondary-bg);
-            border: 1px solid var(--border-color-subtle);
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-
-        .user-list-container h2 {
-            font-size: 1.5rem;
-            color: var(--accent-cyan);
-            text-align: center;
-            margin-bottom: 15px;
-            text-shadow: var(--neon-text-shadow);
-        }
-
-        .user-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        .user-list li {
-            background-color: var(--input-bg);
-            padding: 8px 12px;
-            border-radius: 20px;
-            color: var(--text-light);
-            font-size: 0.9rem;
-            font-weight: 500;
-            border: 1px solid var(--input-bg);
-            transition: all 0.2s ease;
-        }
-
-        .user-list li:hover {
-            border-color: var(--accent-purple);
-            transform: translateY(-2px);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        .user-list li.self {
-            background-color: var(--accent-pink);
-            border-color: var(--accent-pink);
-        }
-
-        /* Room and User ID input */
-        .room-user-input-group {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .room-user-input-group .form-control {
-            flex: 1;
-        }
-
-        .join-button {
-            background: linear-gradient(to right, var(--accent-cyan), var(--accent-purple));
-            box-shadow: 0 0 10px rgba(79, 209, 197, 0.6);
-            border: none;
-            color: var(--text-light);
-            font-weight: 600;
-            font-size: 1.1rem;
-            padding: 10px 15px;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .join-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(79, 209, 197, 0.8);
-        }
-
     </style>
 </head>
-<body>
-    <div class="main-wrapper">
-        <!-- Settings Sidebar -->
-        <div id="settings-sidebar" class="settings-sidebar">
-            <h1><a href="/" style="color: inherit; text-decoration: none;">Chat Settings</a></h1>
+<body class="font-display bg-background-light text-text-main h-screen overflow-hidden flex selection:bg-primary-light selection:text-primary-dark">
 
+    <!-- Sidebar -->
+    <aside id="settings-sidebar" class="sidebar w-80 flex-shrink-0 flex-col border-r border-surface-border bg-background-sidebar z-20 h-full overflow-y-auto no-scrollbar fixed md:relative transform -translate-x-full md:translate-x-0">
+        <div class="p-6 pb-2 flex flex-col gap-1 sticky top-0 bg-background-sidebar z-10 border-b border-surface-border">
+            <a href="/" class="flex items-center gap-3">
+                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white shadow-md shadow-red-900/20">
+                    <span class="material-symbols-outlined text-lg">arrow_back</span>
+                </div>
+                <h1 class="text-text-main text-xl font-bold tracking-tight">Chat Room</h1>
+            </a>
+            <p class="text-text-muted text-xs pl-11 pb-4">Multi-user Translation</p>
+        </div>
+
+        <div class="px-6 py-6 flex flex-col gap-4">
             <!-- Room and User ID Input -->
-            <div class="control-group">
-                <label for="roomId">Room ID</label>
-                <input type="text" id="roomId" class="form-control" placeholder="Enter Room ID">
+            <div class="flex flex-col gap-1">
+                <label for="roomId" class="text-text-muted text-xs font-bold uppercase tracking-wider ml-1">Room ID</label>
+                <input type="text" id="roomId" class="w-full appearance-none rounded-xl bg-white border-surface-border text-text-main py-3 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm font-medium shadow-sm" placeholder="Enter Room ID">
             </div>
-            <div class="control-group">
-                <label for="userId">Your ID</label>
-                <input type="text" id="userId" class="form-control" placeholder="Enter Your ID">
+            <div class="flex flex-col gap-1">
+                <label for="userId" class="text-text-muted text-xs font-bold uppercase tracking-wider ml-1">Your ID</label>
+                <input type="text" id="userId" class="w-full appearance-none rounded-xl bg-white border-surface-border text-text-main py-3 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm font-medium shadow-sm" placeholder="Enter Your ID">
             </div>
-            <button id="joinRoomButton" class="join-button">Join Room</button>
+            <button id="joinRoomButton" class="w-full rounded-xl bg-primary hover:bg-primary-dark text-white flex items-center justify-center shadow-lg transition-all active:scale-95 px-6 py-3 font-bold text-sm">Join Room</button>
 
-            <!-- Language Control (Single) -->
-            <div class="control-group">
-                <label for="myLanguage">My Language</label>
-                <select id="myLanguage" class="form-select">
-                    <option value="en-US">English</option>
-                    <option value="zh-TW" selected>Chinese (Traditional)</option>
-                    <option value="ja-JP">Japanese</option>
-                    <option value="fr-FR">French</option>
-                </select>
-            </div>
+            <div class="h-px w-full bg-surface-border my-2"></div>
 
-            <!-- Audio Source Control -->
-            <div class="control-group">
-                <label for="audioSource">Microphone Input</label>
-                <select id="audioSource" class="form-select"></select>
-            </div>
-
-            <!-- Text-to-Speech Toggle -->
-            <div class="control-group">
-                <div class="form-check form-switch tts-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="ttsToggle">
-                    <label class="form-check-label" for="ttsToggle">Enable Voice Output</label>
+            <!-- Language Control -->
+            <div class="flex flex-col gap-1">
+                <label for="myLanguage" class="text-text-muted text-xs font-bold uppercase tracking-wider ml-1">My Language</label>
+                <div class="relative">
+                    <select id="myLanguage" class="w-full appearance-none rounded-xl bg-white border-surface-border text-text-main py-3 pl-4 pr-10 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer text-sm font-medium shadow-sm">
+                        <option value="en-US">English</option>
+                        <option value="zh-TW" selected>Chinese (Traditional)</option>
+                        <option value="ja-JP">Japanese</option>
+                        <option value="fr-FR">French</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-text-muted">
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
                 </div>
             </div>
 
-            <!-- VU Meter -->
-            <div class="vu-meter-container">
-                <div id="vu-meter"><div id="vu-meter-level"></div></div>
+            <!-- Audio Source Control -->
+            <div class="flex flex-col gap-1">
+                <label for="audioSource" class="text-text-muted text-xs font-bold uppercase tracking-wider ml-1">Microphone</label>
+                <div class="relative">
+                    <select id="audioSource" class="w-full appearance-none rounded-xl bg-white border-surface-border text-text-main py-3 pl-4 pr-10 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer text-sm font-medium shadow-sm"></select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-text-muted">
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                </div>
             </div>
-
-            <!-- Record Button -->
-            <button id="recordButton" class="btn">Start Speaking</button>
-
-            <!-- Status Message -->
-            <div id="status" class="status mt-2">Ready to join a room...</div>
+            
+            <!-- TTS Toggle -->
+             <div class="flex items-center justify-between pt-2">
+                 <label for="ttsToggle" class="text-text-muted text-sm font-medium">Enable Voice Output</label>
+                 <input type="checkbox" id="ttsToggle" class="sr-only peer">
+                 <div class="relative w-11 h-6 bg-surface-border rounded-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50  peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </div>
+            
+            <div class="vu-meter-container mt-auto pt-4">
+                <div id="vu-meter" class="w-full h-2 bg-surface-border rounded-full overflow-hidden"><div id="vu-meter-level" class="h-full bg-primary transition-all duration-50 ease-linear"></div></div>
+            </div>
         </div>
+         <div class="p-6 mt-auto">
+             <button id="recordButton" class="w-full rounded-xl bg-primary hover:bg-primary-dark text-white flex items-center justify-center shadow-lg transition-all active:scale-95 px-6 py-3 font-bold text-sm mb-2">
+                 <span id="recordIcon" class="material-symbols-outlined icon-filled text-[28px]">mic</span>
+                 <span id="recordButtonText" class="ml-2">Start Speaking</span>
+             </button>
+             <div id="status" class="text-xs text-text-muted text-center mt-2">Ready to join a room...</div>
+        </div>
+    </aside>
 
-        <!-- Sidebar Overlay -->
-        <div id="sidebar-overlay" class="sidebar-overlay"></div>
-
-        <!-- Main Content Area -->
-        <main class="content-main">
-            <!-- Sidebar Toggle Button -->
-            <button id="sidebar-toggle"><i class="bi bi-list"></i></button>
-
-            <!-- Main Title -->
-            <h1 class="title-font">Real-time Chat</h1>
-
-            <!-- User List -->
-            <div class="user-list-container">
-                <h2>Participants</h2>
-                <ul id="userList" class="user-list">
-                    <!-- Users will be listed here -->
+    <!-- Main Content -->
+    <main id="main-content" class="flex-1 flex flex-col h-full relative bg-white transition-all duration-300 ease-in-out">
+        <header class="h-16 border-b border-surface-border flex items-center justify-between px-6 bg-white/90 backdrop-blur z-10 sticky top-0">
+            <button id="sidebar-toggle" class="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
+                <span class="material-symbols-outlined text-[24px]">menu</span>
+            </button>
+            <div class="flex items-center gap-4">
+                <h2 class="text-text-main text-lg font-bold">Participants</h2>
+                <ul id="userList" class="flex flex-wrap gap-2">
+                    <!-- Users will be listed here as small avatars or initials -->
                 </ul>
             </div>
 
-            <!-- Interim Display for real-time transcription -->
-            <div id="interimDisplay" class="interim-display-box">
-                <!-- Real-time transcribed text will appear here -->
-            </div>
+        </header>
 
-            <!-- Chat Messages Display -->
-            <div id="chatMessages" class="chat-messages">
+        <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pb-32">
+            <div id="interimDisplay" class="max-w-3xl mx-auto w-full text-center text-text-muted italic">
+                ...
+            </div>
+            <div id="chatMessages" class="max-w-3xl mx-auto w-full space-y-6">
                 <!-- Chat bubbles will appear here -->
             </div>
-        </main>
-    </div>
+        </div>
+    </main>
+    
+    <!-- Sidebar Overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-10 hidden md:hidden"></div>
 
-    <!-- Scripts -->
+
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="/static/js/chat.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.getElementById('settings-sidebar');
+            const mainContent = document.getElementById('main-content');
+            const toggleButton = document.getElementById('sidebar-toggle');
+            const overlay = document.getElementById('sidebar-overlay');
+
+            const openSidebar = () => {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                // mainContent.classList.add('md:ml-80');
+            };
+
+            const closeSidebar = () => {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+                // mainContent.classList.remove('md:ml-80');
+            };
+
+            toggleButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (sidebar.classList.contains('-translate-x-full')) {
+                    openSidebar();
+                } else {
+                    closeSidebar();
+                }
+            });
+
+            overlay.addEventListener('click', closeSidebar);
+            
+            // Handle record button state
+            const recordButton = document.getElementById('recordButton');
+            const recordIcon = document.getElementById('recordIcon');
+            let isRecording = false;
+
+            recordButton.addEventListener('click', () => {
+                isRecording = !isRecording;
+                if (isRecording) {
+                    recordIcon.textContent = 'stop';
+                    recordButton.classList.add('animate-pulse-ring');
+                } else {
+                    recordIcon.textContent = 'mic';
+                    recordButton.classList.remove('animate-pulse-ring');
+                }
+                // Logic from chat.js will handle the actual recording
+            });
+        });
+    </script>
 </body>
 </html>

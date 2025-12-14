@@ -97,7 +97,7 @@ const targetLanguageSelect = document.getElementById("targetLanguage");
 const audioSourceSelect = document.getElementById("audioSource");
 const ttsToggle = document.getElementById("ttsToggle");
 const processingModeSelect = document.getElementById("processingMode");
-const transcriptDisplay = document.getElementById("transcriptDisplay");
+// const transcriptDisplay = document.getElementById("transcriptDisplay");
 const reportDisplay = document.getElementById("reportDisplay");
 const vuMeterLevel = document.getElementById('vu-meter-level');
 const settingsSidebar = document.getElementById('settings-sidebar');
@@ -106,6 +106,7 @@ const sidebarOverlay = document.getElementById('sidebar-overlay');
 const targetLanguageGroup = document.getElementById('targetLanguageGroup');
 const ttsGroup = document.getElementById('ttsGroup');
 const micSourceGroup = document.getElementById('micSourceGroup');
+const captureButtonText = document.getElementById('captureButtonText');
 
 // --- State Variables ---
 let isRecording = false;
@@ -132,37 +133,41 @@ let onGenerateClick = () => {};
 
 // --- Core Functions ---
 function setSettingsEnabled(enabled) {
-    sourceLanguageSelect.disabled = !enabled;
-    processingModeSelect.disabled = !enabled;
+    if (sourceLanguageSelect) sourceLanguageSelect.disabled = !enabled;
+    if (processingModeSelect) processingModeSelect.disabled = !enabled;
     if (enabled) {
         updateModeUI();
     } else {
-        targetLanguageSelect.disabled = true;
-        ttsToggle.disabled = true;
-        audioSourceSelect.disabled = true;
+        if (targetLanguageSelect) targetLanguageSelect.disabled = true;
+        if (ttsToggle) ttsToggle.disabled = true;
+        if (audioSourceSelect) audioSourceSelect.disabled = true;
     }
 }
 
 function updateModeUI() {
+    if (!processingModeSelect) return;
     const mode = processingModeSelect.value;
     const isTranslate = mode === 'translate';
     const isInterview = mode === 'interview';
     const isSummarize = mode === 'summarize';
 
-    targetLanguageGroup.style.display = isTranslate ? 'block' : 'none';
-    micSourceGroup.style.display = (isInterview || isSummarize) ? 'block' : 'none';
-    ttsGroup.style.display = (isTranslate || isInterview) ? 'block' : 'none';
+    if (targetLanguageGroup) targetLanguageGroup.style.display = isTranslate ? 'block' : 'none';
+    if (micSourceGroup) micSourceGroup.style.display = (isInterview || isSummarize) ? 'block' : 'none';
+    if (ttsGroup) ttsGroup.style.display = (isTranslate || isInterview) ? 'block' : 'none';
     // New visibility logic for the dedicated AI Suggestion button
-    document.getElementById('aiSuggestionButton').style.display = isInterview ? 'block' : 'none';
+    const aiBtn = document.getElementById('aiSuggestionButton');
+    if (aiBtn) aiBtn.style.display = isInterview ? 'block' : 'none';
     
-    targetLanguageSelect.disabled = !isTranslate;
-    audioSourceSelect.disabled = !(isInterview || isSummarize);
-    ttsToggle.disabled = !(isTranslate || isInterview);
+    if (targetLanguageSelect) targetLanguageSelect.disabled = !isTranslate;
+    if (audioSourceSelect) audioSourceSelect.disabled = !(isInterview || isSummarize);
+    if (ttsToggle) ttsToggle.disabled = !(isTranslate || isInterview);
 
-    if (isRecording) {
-        generateButton.style.display = (isInterview || isSummarize) ? 'block' : 'none';
-    } else {
-        generateButton.style.display = 'none';
+    if (generateButton) {
+        if (isRecording) {
+            generateButton.style.display = (isInterview || isSummarize) ? 'block' : 'none';
+        } else {
+            generateButton.style.display = 'none';
+        }
     }
 }
 
@@ -197,12 +202,11 @@ function connectSocket() {
     socket = io({ reconnection: false });
 
     socket.on('connect', () => {
-        console.log("Socket connected.");
+        console.log("Socket connected successfully.");
         statusDiv.textContent = "Connected. Ready to capture.";
     });
 
     socket.on('interim_result', (data) => {
-        if (processingModeSelect.value !== 'translate') return; // Only apply to translate mode
         let interimBubble = document.getElementById('interim-bubble');
         if (!interimBubble) {
             interimBubble = document.createElement('div');
@@ -250,8 +254,8 @@ function connectSocket() {
     });
 
     socket.on('disconnect', () => {
-        console.log("Socket disconnected.");
-        statusDiv.textContent = "Disconnected. Please refresh.";
+        console.log("Socket disconnected. Attempting to reconnect on next capture attempt.");
+        statusDiv.textContent = "Disconnected. Please re-start capture.";
         stopCapture();
     });
 }
@@ -342,15 +346,17 @@ function checkInactivity() {
 }
 
 async function startCapture() {
+    console.log("Attempting to start capture...");
     if (!socket || !socket.connected) {
-        statusDiv.textContent = "Not connected. Please wait.";
+        statusDiv.textContent = "Not connected to server. Please wait for connection or refresh.";
+        console.error("Start Capture failed: Socket not connected.");
         return;
     }
     isRecording = true;
     fullTranscript = "";
-    transcriptDisplay.innerHTML = "";
+    // transcriptDisplay.innerHTML = "";
     reportDisplay.innerHTML = "";
-    captureButton.textContent = "Stop Capture";
+    captureButtonText.textContent = "Stop Capture";
     captureButton.classList.add("recording");
     statusDiv.textContent = "Requesting audio access...";
     setSettingsEnabled(false);
@@ -402,8 +408,8 @@ async function startCapture() {
         statusDiv.textContent = "Capturing...";
 
     } catch (err) {
-        console.error("Error starting capture:", err);
-        statusDiv.textContent = `Error: ${err.message}`;
+        console.error("Error starting capture (getDisplayMedia or getUserMedia failed):", err);
+        statusDiv.textContent = `Error getting media: ${err.message}. Please check permissions.`;
         await stopCapture();
     }
 }
@@ -438,7 +444,7 @@ async function stopCapture() {
 
     mediaStream = micStream = displayStream = audioContext = analyser = processor = null;
 
-    captureButton.textContent = "Start Capture";
+    captureButtonText.textContent = "Start Capture";
     captureButton.classList.remove("recording");
     statusDiv.textContent = "Capture stopped.";
     setSettingsEnabled(true);
@@ -514,6 +520,18 @@ function initializeEventListeners() {
     [sourceLanguageSelect, targetLanguageSelect, ttsToggle, audioSourceSelect].forEach(el => {
         el.addEventListener('change', handleSettingsChange);
     });
+
+    // UX Fix: 讓點擊開關圖示也能觸發 checkbox (修復只能點文字的問題)
+    if (ttsToggle && ttsToggle.parentElement) {
+        ttsToggle.parentElement.addEventListener('click', (e) => {
+            // 如果點擊的不是 input 本身也不是 label (label 會自動觸發 input)，則手動切換
+            if (e.target !== ttsToggle && e.target.tagName !== 'LABEL') {
+                ttsToggle.checked = !ttsToggle.checked;
+                ttsToggle.dispatchEvent(new Event('change'));
+            }
+        });
+        ttsToggle.parentElement.style.cursor = 'pointer';
+    }
     
     processingModeSelect.addEventListener('change', updateModeUI);
 

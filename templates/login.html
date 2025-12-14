@@ -1,66 +1,56 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="light" lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --dark-bg: #181a2f;
-            --primary-bg: #20243b;
-            --accent-cyan: #4fd1c5;
-            --text-light: #e2e8f0;
-            --neon-text-shadow: 0 0 8px rgba(79, 209, 197, 0.5);
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Login - Real-Time Voice Translator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#B91C1C",
+                        "primary-dark": "#991B1B",
+                        "primary-light": "#FEE2E2",
+                        "background-light": "#f8fafc",
+                        "surface-light": "#ffffff",
+                        "surface-border": "#e2e8f0",
+                        "text-main": "#0f172a",
+                        "text-muted": "#64748b",
+                    },
+                    fontFamily: { "display": ["Spline Sans", "sans-serif"] },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
         }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--dark-bg);
-            color: var(--text-light);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-        }
-        .login-container {
-            background-color: var(--primary-bg);
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-            text-align: center;
-        }
-        h1 {
-            font-family: 'Orbitron', sans-serif;
-            color: var(--accent-cyan);
-            text-shadow: var(--neon-text-shadow);
-            margin-bottom: 30px;
-        }
-        .login-button {
-            display: inline-block;
-            padding: 15px 25px;
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: var(--text-light);
-            background-color: var(--accent-cyan);
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            transition: all 0.3s ease;
-        }
-        .login-button:hover {
-            filter: brightness(1.1);
-            box-shadow: 0 0 15px rgba(79, 209, 197, 0.6);
-        }
-    </style>
+    </script>
 </head>
-<body>
-    <div class="login-container">
-        <h1>Realtime Translate</h1>
-        <a href="/login" class="login-button">Login with Google</a>
+<body class="font-display bg-background-light text-text-main h-screen flex items-center justify-center p-4">
+    <div class="bg-surface-light p-8 md:p-12 rounded-xl shadow-lg border border-surface-border text-center max-w-sm w-full">
+        <div class="flex items-center justify-center gap-3 mb-2">
+            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-white shadow-md shadow-red-900/20">
+                <span class="material-symbols-outlined">graphic_eq</span>
+            </div>
+            <h1 class="text-text-main text-2xl font-bold tracking-tight">VoiceLink</h1>
+        </div>
+        <p class="text-text-muted text-sm mb-8">Real-time Translation</p>
+
+        <h2 class="text-xl font-bold text-text-main mb-2">Welcome Back</h2>
+        <p class="text-text-muted mb-6">Sign in to continue your session.</p>
+
+        <a href="/login" class="flex items-center justify-center gap-3 w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg">
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                <path fill="currentColor" d="M488 261.8C488 403.3 381.5 512 244 512 109.8 512 0 402.2 0 261.8 0 120.5 109.8 8 244 8c66.8 0 126 21.2 173.4 56.2l-67.1 66.8C314.6 95.6 282.5 80 244 80c-83.6 0-151.4 68.8-151.4 153.4s67.8 153.4 151.4 153.4c97.1 0 134-62.5 140.8-95.3H244V201.3h238.2c1.2 12.1 2.3 24.6 2.3 38.5z"/>
+            </svg>
+            <span>Login with Google</span>
+        </a>
+         <div class="mt-8 text-xs text-text-muted">
+            By continuing, you agree to our <a href="#" class="text-primary hover:underline">Terms of Service</a> and <a href="#" class="text-primary hover:underline">Privacy Policy</a>.
+        </div>
     </div>
 </body>
 </html>

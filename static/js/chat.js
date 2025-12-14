@@ -15,6 +15,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const userIdInput = document.getElementById('userId');
     const joinRoomButton = document.getElementById('joinRoomButton');
     const userList = document.getElementById('userList');
+    const recordIcon = document.getElementById("recordIcon");
+    const recordButtonText = document.getElementById("recordButtonText");
 
     // --- State Variables ---
     let isRecording = false;
@@ -49,13 +51,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- Core Functions ---
     function setSettingsEnabled(enabled) {
-        // myLanguageSelect.disabled = !enabled; // REMOVE THIS LINE
-        // audioSourceSelect.disabled = !enabled; // REMOVE THIS LINE
-        ttsToggle.disabled = !enabled;
-            function setSettingsEnabled(enabled) {
-        ttsToggle.disabled = !enabled;
-        // recordButton.disabled = !enabled; // REMOVE THIS LINE
-    }
+        if (myLanguageSelect) myLanguageSelect.disabled = !enabled;
+        if (audioSourceSelect) audioSourceSelect.disabled = !enabled;
+        if (ttsToggle) ttsToggle.disabled = !enabled;
+        if (joinRoomButton) joinRoomButton.disabled = !enabled;
+        if (roomIdInput) roomIdInput.disabled = !enabled;
+        if (userIdInput) userIdInput.disabled = !enabled;
     }
 
     async function populateAudioInputDevices() {
@@ -312,7 +313,8 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         isRecording = true;
-        recordButton.textContent = "Stop Speaking";
+        recordIcon.textContent = 'stop';
+        recordButtonText.textContent = "Stop Speaking";
         recordButton.classList.add("recording");
         statusDiv.textContent = "Requesting microphone access...";
         interimDisplay.textContent = "Listening...";
@@ -344,10 +346,10 @@ document.addEventListener("DOMContentLoaded", () => {
             inactivityTimer = null;
         }
         if (!isRecording) return;
-        isRecording = false;
-
-        recordButton.textContent = "Start Speaking";
-        recordButton.classList.remove("recording");
+                isRecording = false;
+                recordIcon.textContent = 'mic';
+                recordButtonText.textContent = "Start Speaking";
+                recordButton.classList.remove("recording");
         statusDiv.textContent = "Click 'Start Speaking' and begin speaking.";
         interimDisplay.textContent = "";
         setSettingsEnabled(true);
@@ -377,6 +379,17 @@ document.addEventListener("DOMContentLoaded", () => {
     [myLanguageSelect, audioSourceSelect, ttsToggle].forEach(el => {
         el.addEventListener('change', handleSettingsChange);
     });
+
+    // UX Fix: 讓點擊開關圖示也能觸發 checkbox
+    if (ttsToggle && ttsToggle.parentElement) {
+        ttsToggle.parentElement.addEventListener('click', (e) => {
+            if (e.target !== ttsToggle && e.target.tagName !== 'LABEL') {
+                ttsToggle.checked = !ttsToggle.checked;
+                ttsToggle.dispatchEvent(new Event('change'));
+            }
+        });
+        ttsToggle.parentElement.style.cursor = 'pointer';
+    }
 
     joinRoomButton.addEventListener('click', () => {
         const roomId = roomIdInput.value.trim();
@@ -428,6 +441,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Initial setup
-    setSettingsEnabled(false); // Disable settings until room is joined
+    setSettingsEnabled(true); // Enable settings initially so user can interact
     populateAudioInputDevices();
 });
