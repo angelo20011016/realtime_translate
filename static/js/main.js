@@ -44,13 +44,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- Core Functions ---
     function setSettingsEnabled(enabled) {
-        sourceLanguageSelect.disabled = !enabled;
-        targetLanguageSelect.disabled = !enabled;
-        audioSourceSelect.disabled = !enabled;
-        ttsToggle.disabled = !enabled;
+        if (sourceLanguageSelect) sourceLanguageSelect.disabled = !enabled;
+        if (targetLanguageSelect) targetLanguageSelect.disabled = !enabled;
+        if (audioSourceSelect) audioSourceSelect.disabled = !enabled;
+        if (ttsToggle) ttsToggle.disabled = !enabled;
     }
 
     async function populateAudioInputDevices() {
+        if (!audioSourceSelect) return;
         try {
             await navigator.mediaDevices.getUserMedia({ audio: true });
             const devices = await navigator.mediaDevices.enumerateDevices();
@@ -323,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
         recordButton.textContent = "Start Recording";
         recordButton.classList.remove("recording");
         statusDiv.textContent = "Click 'Start Recording' and begin speaking.";
-        interimDisplay.textContent = "";
+        if (interimDisplay) interimDisplay.textContent = "";
         setSettingsEnabled(true);
 
         await stopAudioCapture();
@@ -338,8 +339,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     [sourceLanguageSelect, targetLanguageSelect, ttsToggle, audioSourceSelect].forEach(el => {
-        el.addEventListener('change', handleSettingsChange);
+        if (el) el.addEventListener('change', handleSettingsChange);
     });
+
+    // UX Fix: 讓點擊開關圖示也能觸發 checkbox
+    if (ttsToggle && ttsToggle.parentElement) {
+        ttsToggle.parentElement.addEventListener('click', (e) => {
+            if (e.target !== ttsToggle && e.target.tagName !== 'LABEL') {
+                ttsToggle.checked = !ttsToggle.checked;
+                ttsToggle.dispatchEvent(new Event('change'));
+            }
+        });
+        ttsToggle.parentElement.style.cursor = 'pointer';
+    }
 
     function downsample(buffer, fromSampleRate, toSampleRate) {
         if (fromSampleRate === toSampleRate) return buffer;

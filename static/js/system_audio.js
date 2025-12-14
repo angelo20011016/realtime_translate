@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+    if (!processingModeSelect) return;
     const selectedMode = processingModeSelect.value;
 
     // Assign the correct handlers based on the selected mode

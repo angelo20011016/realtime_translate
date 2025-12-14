@@ -1,432 +1,100 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="light" lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Interface</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    
-    <style>
-        /* CSS 變數與基礎設定保持不變 */
-        :root {
-            --bg-color: #080808; 
-            --card-bg: #121215;
-            --card-border: rgba(255, 255, 255, 0.08);
-            --text-main: #f2f2f2;
-            --text-muted: #8a8a8a;
-            --spotlight-color: rgba(255, 255, 255, 0.15);
-            --divider-color: rgba(255, 255, 255, 0.1); /* 新增淺白線顏色 */
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Select Mode - Real-Time Voice Translator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#B91C1C",
+                        "primary-dark": "#991B1B",
+                        "primary-light": "#FEE2E2",
+                        "background-light": "#f8fafc",
+                        "surface-light": "#ffffff",
+                        "surface-border": "#e2e8f0",
+                        "text-main": "#0f172a",
+                        "text-muted": "#64748b",
+                    },
+                    fontFamily: { "display": ["Spline Sans", "sans-serif"] },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
         }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow-x: hidden;
-        }
-
-        .noise-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 999;
-            opacity: 0.03;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-        }
-
-        .navbar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 24px 40px;
-            box-sizing: border-box;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 10;
-        }
-
-        .brand {
-            font-family: 'Inter', sans-serif;
-            font-weight: 600;
-            font-size: 1rem;
-            color: var(--text-main);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background-color: #10b981;
-            border-radius: 50%;
-            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
-        }
-
-        .user-controls {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            display: flex;
-            gap: 20px;
-        }
-
-        .logout-link {
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: 0.2s;
-        }
-        .logout-link:hover { color: var(--text-main); }
-
-        .container {
-            width: 100%;
-            max-width: 960px;
-            padding: 40px;
-            z-index: 1;
-        }
-
-        header {
-            margin-bottom: 40px;
-            animation: fadeDown 0.8s ease-out;
-            text-align: left; /* 標題左對齊，更像 App */
-            padding-left: 16px;
-        }
-
-        h1 {
-            font-size: 2.5rem; /* 標題加大 */
-            font-weight: 600;
-            letter-spacing: -0.05em;
-            margin: 0 0 8px 0;
-        }
-
-        .subtitle {
-            color: var(--text-muted);
-            font-size: 1rem;
-            font-weight: 400;
-        }
-
-        .grid-container {
-            display: grid;
-            grid-template-columns: 1.6fr 1fr 1fr;
-            /* *** 關鍵修正：將固定高度改為自適應 *** */
-            grid-template-rows: auto; 
-            gap: 16px;
-            grid-template-areas: 
-                "hero mic mic"
-                "hero sys chat";
-        }
-
-        .card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 16px; /* 圓角加大 */
-            padding: 24px; /* 增加 padding */
-            text-decoration: none;
-            color: inherit;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            transition: transform 0.2s, border-color 0.2s;
-            opacity: 0; 
-            animation: fadeUp 0.6s ease-out forwards;
-        }
-
-        .card::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: radial-gradient(
-                800px circle at var(--mouse-x) var(--mouse-y), 
-                rgba(255, 255, 255, 0.06),
-                transparent 40%
-            );
-            z-index: 0;
-            opacity: 0;
-            transition: opacity 0.5s;
-            pointer-events: none;
-        }
-
-        .card:hover::before { opacity: 1; }
-        .card:hover { border-color: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
-        .card:active { transform: scale(0.98); }
-
-        .card-content {
-            position: relative;
-            z-index: 1;
-            height: 100%; /* 必須是 100% 才能讓 auto-margin 生效 */
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start; 
-        }
-
-        .card-hero { grid-area: hero; animation-delay: 0.1s; }
-        .card-mic  { grid-area: mic;  animation-delay: 0.2s; }
-        .card-sys  { grid-area: sys;  animation-delay: 0.3s; }
-        .card-chat { grid-area: chat; animation-delay: 0.4s; }
-
-        .icon-box {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #18181b;
-            border: 1px solid #27272a;
-            color: #fff;
-            transition: 0.3s;
-            flex-shrink: 0; 
-        }
-        
-        /* Hero 卡片 Icon 突出 */
-        .card-hero .icon-box {
-            width: 64px; 
-            height: 64px;
-            background: #ededed;
-            color: #000;
-            border-radius: 16px;
-        }
-
-        /* 包含 Icon 和 Title 的容器 */
-        .card-header {
-            display: flex;
-            align-items: center; /* 標題與 Icon 垂直居中對齊 */
-            gap: 16px; 
-            padding-bottom: 8px; /* 縮小 Icon/Title 與分隔線之間的間距 */
-            margin-bottom: 8px;  /* 縮小分隔線與描述文字之間的間距 */
-        }
-
-        /* === 標題下方的淺白色分割線 (只有非 Hero 卡片) === */
-        .card:not(.card-hero) .card-header {
-            border-bottom: 1px solid transparent; 
-            transition: border-color 0.3s;
-        }
-
-        .card:not(.card-hero):hover .card-header {
-            border-bottom-color: var(--divider-color); /* 滑鼠懸停時顯示線條 */
-        }
-
-        /* Hero 卡片 Header 樣式調整 */
-        .card-hero .card-header {
-            padding-bottom: 0;
-            margin-bottom: 0; 
-        }
-        
-        /* 包含 Title 的文字群組 */
-        .card-text-group {
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1; 
-        }
-
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: 500;
-            display: block;
-            margin: 0; 
-            line-height: 1.2;
-        }
-        
-        .card-hero .card-title {
-            font-size: 1.8rem;
-            font-weight: 600;
-        }
-
-        .card-desc {
-            font-size: 0.95rem; 
-            color: var(--text-main); 
-            /* *** 調整行高以容納更多文字 *** */
-            line-height: 1.5; 
-            margin-top: 0; 
-        }
-        
-        /* Hero 卡片描述組推到底部 */
-        .card-hero .card-desc-group {
-            margin-top: auto; 
-        }
-
-        .desc-en {
-            opacity: 0.6;
-            font-size: 0.9em;
-            margin-top: 8px;
-            display: inline-block;
-            color: var(--text-muted); 
-        }
-        
-        /* RWD */
-        @media (max-width: 768px) {
-            .grid-container {
-                grid-template-columns: 1fr;
-                /* *** 確保 RWD 也是自適應高度 *** */
-                grid-template-rows: auto; 
-                grid-template-areas: 
-                    "hero"
-                    "mic"
-                    "sys"
-                    "chat";
-            }
-        }
-        
-        /* 動畫 Keyframes 保持不變 */
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-    </style>
-</head>
-<body>
-
-    <div class="noise-overlay"></div>
-
-    <div class="navbar">
-        <div class="brand">
-            <div class="status-dot"></div>
-            <span>Real-Time Translate</span>
-        </div>
-        <div class="user-controls">
-            {% if user %}
-            <span>USR: {{ user.name }}</span>
-            {% else %}
-            <span>USR: LOCAL_USER</span>
-            {% endif %}
-            <span style="opacity:0.2">|</span>
-            <a href="/logout" class="logout-link">LOGOUT</a>
-        </div>
-    </div>
-
-    <div class="container">
-        <header>
-            <h1>Choose Mode</h1>
-            <div class="subtitle">Please select your desired translation mode. All services are running.</div>
-        </header>
-
-        <div class="grid-container">
-            
-            <!-- 1. Hero Card: Conversation Mode -->
-            <a href="/conversation" class="card card-hero">
-                <div class="card-content">
-                    <div class="card-header">
-                        <div class="icon-box">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                        </div>
-                        <div class="card-text-group">
-                            <span class="card-title">雙向對話模式</span>
-                        </div>
-                    </div>
-                    <!-- Hero 描述單獨放置，並靠下對齊 -->
-                    <div class="card-desc-group">
-                        <span class="card-desc">
-                            一鍵切換翻譯語言，適用於現場雙人或多人的即時溝通。提供更流暢、低延遲的對話體驗。
-                            <br>
-                            <span class="desc-en">Two-way communication with one-click language swap, ideal for fluid, low-latency live conversations.</span>
-                        </span>
-                    </div>
-                </div>
-            </a>
-
-            <!-- 2. Mic Mode -->
-            <a href="/solo" class="card card-mic">
-                <div class="card-content">
-                    <div class="card-header">
-                        <div class="icon-box">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                        </div>
-                        <div class="card-text-group">
-                            <span class="card-title">麥克風轉譯模式</span>
-                        </div>
-                    </div>
-                    <div class="card-desc-group">
-                        <span class="card-desc">
-                            基礎模式，將麥克風輸入的語音即時轉譯為文字與目標語言輸出。
-                            <br>
-                            <span class="desc-en">Basic mode, translates real-time voice input from the microphone to text and target language output.</span>
-                        </span>
-                    </div>
-                </div>
-            </a>
-
-            <!-- 3. System Audio -->
-            <a href="/system" class="card card-sys">
-                <div class="card-content">
-                    <div class="card-header">
-                        <div class="icon-box">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                        </div>
-                        <div class="card-text-group">
-                            <span class="card-title">系統音訊轉譯</span>
-                        </div>
-                    </div>
-                    <div class="card-desc-group">
-                        <span class="card-desc">
-                            使用電腦內部音訊作為輸入，適用於觀看無字幕影片、直播或會議轉譯。
-                            <br>
-                            <span class="desc-en">Translates internal computer audio, ideal for videos, streams, or transcribing meetings.</span>
-                        </span>
-                    </div>
-                </div>
-            </a>
-
-            <!-- 4. Chat Mode -->
-            <a href="/chat" class="card card-chat">
-                <div class="card-content">
-                    <div class="card-header">
-                        <div class="icon-box">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                        </div>
-                        <div class="card-text-group">
-                            <span class="card-title">多方聊天室轉譯</span>
-                        </div>
-                    </div>
-                    <div class="card-desc-group">
-                        <span class="card-desc">
-                            能即時翻譯多位使用者的聊天室，並依照各自設定的語言獨立輸出翻譯文字。
-                            <br>
-                            <span class="desc-en">Provides real-time translation for a multi-user chat room, delivering translated text independently based on each user's configured language.</span>
-                        </span>
-                    </div>
-                </div>
-            </a>
-
-        </div>
-    </div>
-
-    <script>
-        const cards = document.querySelectorAll('.card');
-
-        // 監聽整個容器的滑鼠移動
-        document.querySelector('.grid-container').onmousemove = e => {
-            for(const card of cards) {
-                const rect = card.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-
-                // 更新 CSS 變數來控制光暈位置
-                card.style.setProperty('--mouse-x', `${x}px`);
-                card.style.setProperty('--mouse-y', `${y}px`);
-            }
-        };
     </script>
+</head>
+<body class="font-display bg-background-light text-text-main min-h-screen flex flex-col">
+
+    <nav class="absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white shadow-md shadow-red-900/20">
+                <span class="material-symbols-outlined text-lg">graphic_eq</span>
+            </div>
+            <h1 class="text-text-main text-xl font-bold tracking-tight">VoiceLink</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            {% if user %}
+            <span class="text-sm font-medium text-text-muted">Welcome, {{ user.name }}</span>
+            {% else %}
+            <span class="text-sm font-medium text-text-muted">Local Mode</span>
+            {% endif %}
+            <a href="/logout" class="text-sm font-medium text-text-muted hover:text-primary transition-colors">Logout</a>
+        </div>
+    </nav>
+
+    <main class="flex-1 flex items-center justify-center p-4">
+        <div class="w-full max-w-4xl mx-auto text-center">
+            <h2 class="text-4xl font-bold tracking-tight text-text-main mb-2">Choose Your Mode</h2>
+            <p class="text-lg text-text-muted mb-12">Select the translation interface that best suits your needs.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Conversation Mode -->
+                <a href="/conversation" class="group bg-surface-light p-8 rounded-xl border border-surface-border text-left shadow-lg hover:shadow-primary/20 hover:-translate-y-1 transition-all duration-300">
+                    <div class="p-3 bg-primary-light rounded-lg inline-block mb-4">
+                        <span class="material-symbols-outlined text-primary text-3xl">groups</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-text-main mb-2">Conversation Mode</h3>
+                    <p class="text-text-muted">Two-way communication with one-click language swap, ideal for fluid, low-latency live conversations.</p>
+                </a>
+
+                <!-- Solo Mode -->
+                <a href="/solo" class="group bg-surface-light p-8 rounded-xl border border-surface-border text-left shadow-lg hover:shadow-primary/20 hover:-translate-y-1 transition-all duration-300">
+                    <div class="p-3 bg-primary-light rounded-lg inline-block mb-4">
+                        <span class="material-symbols-outlined text-primary text-3xl">mic</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-text-main mb-2">Solo Mode</h3>
+                    <p class="text-text-muted">Basic mode, translates real-time voice input from the microphone to text and target language output.</p>
+                </a>
+                
+                <!-- System Audio -->
+                <a href="/system" class="group bg-surface-light p-8 rounded-xl border border-surface-border text-left shadow-lg hover:shadow-primary/20 hover:-translate-y-1 transition-all duration-300">
+                    <div class="p-3 bg-primary-light rounded-lg inline-block mb-4">
+                        <span class="material-symbols-outlined text-primary text-3xl">desktop_windows</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-text-main mb-2">System Audio</h3>
+                    <p class="text-text-muted">Translates internal computer audio, ideal for videos, streams, or transcribing meetings.</p>
+                </a>
+
+                <!-- Chat Mode -->
+                <a href="/chat" class="group bg-surface-light p-8 rounded-xl border border-surface-border text-left shadow-lg hover:shadow-primary/20 hover:-translate-y-1 transition-all duration-300 md:col-span-3">
+                     <div class="flex items-center gap-6">
+                        <div class="p-3 bg-primary-light rounded-lg inline-block">
+                            <span class="material-symbols-outlined text-primary text-4xl">chat</span>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-text-main mb-2">Multi-user Chat Mode</h3>
+                            <p class="text-text-muted">Provides real-time translation for a multi-user chat room, delivering translated text independently based on each user's configured language.</p>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </main>
 </body>
 </html>

@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const vuMeterLevel = document.getElementById('vu-meter-level');
     const settingsSidebar = document.getElementById('settings-sidebar');
     const sidebarToggle = document.getElementById('sidebar-toggle');
+    const recordIcon = document.getElementById('recordIcon');
+    const recordButtonText = document.getElementById('recordButtonText');
+    const myMessageAlignmentToggle = null; // Removed from HTML, set to null
+    const swapLanguagesButton = document.getElementById('swapLanguagesButton');
 
     // --- State Variables ---
     let isRecording = false;
@@ -46,11 +50,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
     recordButton.addEventListener('click', toggleRecording);
-    swapButton.addEventListener('click', swapLanguages);
-    // We don't handle settings change during recording for language selects anymore, 
-    // as the swap button is the main interface for that.
     ttsToggle.addEventListener('change', handleSettingsChange);
     audioSourceSelect.addEventListener('change', handleSettingsChange);
+    myMessageAlignmentToggle.addEventListener('change', handleSettingsChange); // REMOVE THIS LINE
+    swapLanguagesButton.addEventListener('click', swapLanguages);
+
+    // UX Fix: 讓點擊開關圖示也能觸發 checkbox
+    [ttsToggle].forEach(toggle => {
+        if (toggle && toggle.parentElement) {
+            toggle.parentElement.addEventListener('click', (e) => {
+                if (e.target !== toggle && e.target.tagName !== 'LABEL') {
+                    toggle.checked = !toggle.checked;
+                    toggle.dispatchEvent(new Event('change'));
+                }
+            });
+            toggle.parentElement.style.cursor = 'pointer';
+        }
+    });
 
     // --- Socket Connection ---
     function connectSocket() {
@@ -89,9 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleInterimResult(data) {
         let interimBubble = document.getElementById('interim-bubble');
         if (!interimBubble) {
-            const sourceLang = languageASelect.value; // Source is always from languageA dropdown
-            const alignment = sourceLang === langOnLeft ? 'bubble-left' : 'bubble-right';
-            interimBubble = createBubble(data.text, 'interim', '', alignment);
+            const alignment = data.source_lang === langOnLeft ? 'bubble-left' : 'bubble-right';
+            interimBubble = createBubble(data.text, 'interim', '', alignment, data.source_lang);
             interimBubble.id = 'interim-bubble';
             chatDisplay.appendChild(interimBubble);
         } else {
@@ -107,7 +122,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!data.original || !data.refined) return;
 
         const alignment = data.source_lang === langOnLeft ? 'bubble-left' : 'bubble-right';
-        const bubble = createBubble(data.original, 'final', data.refined, alignment);
+        
+        const bubble = createBubble(data.original, 'final', data.refined, alignment, data.source_lang);
         chatDisplay.appendChild(bubble);
         chatDisplay.scrollTop = chatDisplay.scrollHeight;
     }
@@ -128,9 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDiv.textContent = "Requesting microphone...";
 
         socket.emit('start_translation', {
-            sourceLanguage: languageASelect.value,
-            targetLanguage: languageBSelect.value,
-            ttsEnabled: ttsToggle.checked
+            candidateLanguages: [languageASelect.value, languageBSelect.value],
+            ttsEnabled: ttsToggle.checked,
+            mode: 'conversation'
         });
 
         startAudioProcessing();
@@ -154,24 +170,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function swapLanguages() {
-        const langA = languageASelect.value;
-        const langB = languageBSelect.value;
-        languageASelect.value = langB;
-        languageBSelect.value = langA;
-        
-        if (isRecording) {
-            console.log('Swapping languages while recording...');
-            handleSettingsChange();
-        }
-    }
-
     function handleSettingsChange() {
         if (!isRecording || !socket || !socket.connected) return;
-        console.log('Settings changed, restarting recognizer...');
+        console.log('Settings changed, sending update...');
         socket.emit('settings_changed', {
-            sourceLanguage: languageASelect.value,
-            targetLanguage: languageBSelect.value,
             ttsEnabled: ttsToggle.checked
         });
         statusDiv.textContent = 'Applying new settings...';
@@ -244,9 +246,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- UI & Helper Functions ---
-    function createBubble(originalText, type, translatedText = '', alignment) {
+    function createBubble(originalText, type, translatedText = '', alignment, sourceLang = null) {
         const bubble = document.createElement('div');
         bubble.classList.add('chat-bubble', alignment, type);
+        if (sourceLang) {
+            bubble.dataset.sourceLang = sourceLang;
+        }
 
         const originalP = document.createElement('p');
         originalP.classList.add('bubble-original-text');
@@ -262,27 +267,62 @@ document.addEventListener('DOMContentLoaded', () => {
         return bubble;
     }
 
+    function updateBubbleAlignments() {
+        const bubbles = chatDisplay.querySelectorAll('.chat-bubble');
+        bubbles.forEach(bubble => {
+            const sourceLang = bubble.dataset.sourceLang; // Get stored source language
+            if (sourceLang) {
+                let newAlignment = (sourceLang === langOnLeft) ? 'bubble-left' : 'bubble-right';
+                
+                // Remove existing alignment classes
+                bubble.classList.remove('bubble-left', 'bubble-right');
+                // Add new alignment class
+                bubble.classList.add(newAlignment);
+            }
+        });
+    }
+
+    function swapLanguages() {
+        const tempValue = languageASelect.value;
+        languageASelect.value = languageBSelect.value;
+        languageBSelect.value = tempValue;
+
+        // Manually trigger change events to update dependent logic (e.g., handleSettingsChange)
+        languageASelect.dispatchEvent(new Event('change'));
+        languageBSelect.dispatchEvent(new Event('change'));
+
+        initializeLanguages(); // Re-initialize langOnLeft/Right based on new selections
+        updateBubbleAlignments(); // Call this after languages are initialized
+
+        // Add a visual click effect
+        if (swapLanguagesButton) {
+            swapLanguagesButton.classList.add('animate-bounce');
+            setTimeout(() => {
+                swapLanguagesButton.classList.remove('animate-bounce');
+            }, 500); // Bounce for 500ms
+        }
+    }
+
     function updateRecordButton() {
-        const icon = recordButton.querySelector('i');
-        const text = recordButton.querySelector('span');
+        const icon = document.getElementById('recordIcon');
+        const text = document.getElementById('recordButtonText');
         if (isRecording) {
-            recordButton.classList.add('recording');
-            icon.classList.remove('bi-mic-fill');
-            icon.classList.add('bi-stop-circle-fill');
-            text.textContent = 'Stop Recording';
+            icon.textContent = 'stop';
+            text.textContent = 'Stop Talking';
+            recordButton.classList.add('animate-pulse-ring');
         } else {
-            recordButton.classList.remove('recording');
-            icon.classList.remove('bi-stop-circle-fill');
-            icon.classList.add('bi-mic-fill');
-            text.textContent = 'Start Recording';
+            icon.textContent = 'mic';
+            text.textContent = 'Start Talking';
+            recordButton.classList.remove('animate-pulse-ring');
         }
     }
 
     function setSettingsEnabled(enabled) {
-        // The language dropdowns are always disabled during recording to enforce using the swap button
-        languageASelect.disabled = !enabled;
-        languageBSelect.disabled = !enabled;
-        audioSourceSelect.disabled = !enabled;
+        if (languageASelect) languageASelect.disabled = !enabled;
+        if (languageBSelect) languageBSelect.disabled = !enabled;
+        if (audioSourceSelect) audioSourceSelect.disabled = !enabled;
+        if (ttsToggle) ttsToggle.disabled = !enabled;
+        if (swapLanguagesButton) swapLanguagesButton.disabled = !enabled;
     }
 
     async function populateAudioInputDevices() {
@@ -337,4 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return buffer;
     }
+
+    // Force enable settings on load
+    setSettingsEnabled(true);
 });

@@ -125,7 +125,7 @@ def register_handlers(socketio, model, speech_key, speech_region, speech_config,
         elif evt.result.reason == speechsdk.ResultReason.NoMatch:
             logging.info(f"No speech could be recognized for sid {sid}.")
             return
-        elif evt.result.reason == speechsdk.ResultReason.Canceled:
+        elif evt.result.reason == speechsdk.CancellationReason.Error:
             cancellation_details = evt.result.cancellation_details
             logging.error(f"Recognition canceled for sid {sid}: Reason={cancellation_details.reason}")
             if cancellation_details.reason == speechsdk.CancellationReason.Error:
@@ -144,8 +144,28 @@ def register_handlers(socketio, model, speech_key, speech_region, speech_config,
             logging.warning(f"Could not find client info for sid {sid}")
             return
 
-        source_lang = client_info['source_lang']
-        target_lang = client_info['target_lang']
+        source_lang = client_info.get('source_lang')
+        target_lang = client_info.get('target_lang')
+        
+        # --- Language Auto-Detection Logic ---
+        if 'candidate_languages' in client_info:
+            auto_detect_result = evt.result.properties.get(speechsdk.PropertyId.SpeechServiceConnection_AutoDetectSourceLanguageResult)
+            logging.info(f"Auto detect result from Azure: {auto_detect_result} for sid {sid}") # <-- Added log
+            if auto_detect_result:
+                detected_lang = auto_detect_result
+                logging.info(f"Language auto-detected for sid {sid}: {detected_lang}")
+                
+                # Determine source and target from candidates
+                if detected_lang in client_info['candidate_languages']:
+                    source_lang = detected_lang
+                    # The other language is the target
+                    target_lang = next((lang for lang in client_info['candidate_languages'] if lang != detected_lang), None)
+                    if not target_lang:
+                        logging.error(f"Could not determine target language for sid {sid} from candidates {client_info['candidate_languages']}")
+                        return 
+                else:
+                    logging.warning(f"Detected language {detected_lang} not in candidate list for sid {sid}. Using default.")
+        
         tts_enabled = client_info['tts_enabled']
 
         try:
@@ -235,27 +255,48 @@ def register_handlers(socketio, model, speech_key, speech_region, speech_config,
             logging.warning(f"Found existing client session for {sid}. Cleaning up before starting new one.")
             cleanup_client(sid)
 
-        source_lang = data.get('sourceLanguage', 'en-US')
-        target_lang = data.get('targetLanguage', 'zh-TW')
         tts_enabled = data.get('ttsEnabled', False)
-
-        logging.info(f"Starting translation for sid {sid}: Source={source_lang}, Target={target_lang}, TTS={tts_enabled}")
+        candidate_languages = data.get('candidateLanguages')
+        
+        logging.info(f"Received candidate languages: {candidate_languages} for sid {sid}") # <-- Added log
 
         try:
             client_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
-            client_speech_config.speech_recognition_language = source_lang
-            
             push_stream = speechsdk.audio.PushAudioInputStream()
             audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
-            speech_recognizer = speechsdk.SpeechRecognizer(speech_config=client_speech_config, audio_config=audio_config)
-
-            clients[sid] = {
-                'recognizer': speech_recognizer,
+            
+            client_info = {
                 'stream': push_stream,
-                'source_lang': source_lang,
-                'target_lang': target_lang,
-                'tts_enabled': tts_enabled
+                'tts_enabled': tts_enabled,
             }
+
+            if candidate_languages and len(candidate_languages) > 1:
+                # Conversation mode with auto-detection
+                logging.info(f"Starting conversation mode for sid {sid} with languages: {candidate_languages}")
+                client_speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceConnection_LanguageIdMode, value='Continuous')
+                auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=candidate_languages)
+                speech_recognizer = speechsdk.SpeechRecognizer(
+                    speech_config=client_speech_config, 
+                    auto_detect_source_language_config=auto_detect_config, 
+                    audio_config=audio_config
+                )
+                client_info['candidate_languages'] = candidate_languages
+                # Placeholder, will be updated on first recognition
+                client_info['source_lang'] = candidate_languages[0] 
+                client_info['target_lang'] = candidate_languages[1]
+
+            else:
+                # Solo mode
+                source_lang = data.get('sourceLanguage', 'en-US')
+                target_lang = data.get('targetLanguage', 'zh-TW')
+                logging.info(f"Starting solo mode for sid {sid}: Source={source_lang}, Target={target_lang}")
+                client_speech_config.speech_recognition_language = source_lang
+                speech_recognizer = speechsdk.SpeechRecognizer(speech_config=client_speech_config, audio_config=audio_config)
+                client_info['source_lang'] = source_lang
+                client_info['target_lang'] = target_lang
+
+            client_info['recognizer'] = speech_recognizer
+            clients[sid] = client_info
 
             speech_recognizer.recognizing.connect(lambda evt: socketio.emit('interim_result', {'text': evt.result.text}, room=sid))
             speech_recognizer.recognized.connect(lambda evt: handle_final_recognition(evt, sid))
@@ -272,6 +313,13 @@ def register_handlers(socketio, model, speech_key, speech_region, speech_config,
         sid = request.sid
         logging.info(f"Settings changed for sid {sid}. Restarting translation process.")
         
+        client_info = clients.get(sid)
+        if client_info and 'candidate_languages' in client_info:
+            logging.warning(f"Settings change ignored for sid {sid} in conversation mode.")
+            # In conversation mode, language swapping is handled differently or not at all.
+            # We might only need to update TTS, but for now, we'll just ignore it.
+            return
+
         if sid in clients:
             cleanup_client(sid)
 
@@ -287,6 +335,12 @@ def register_handlers(socketio, model, speech_key, speech_region, speech_config,
 
         try:
             client_speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+            
+            # Note: This handler is not expected to be used for language changes in conversation mode.
+            # However, we add the property as a safeguard.
+            if client_info and 'candidate_languages' in client_info:
+                 client_speech_config.set_property(property_id=speechsdk.PropertyId.SpeechServiceConnection_LanguageIdMode, value='Continuous')
+
             client_speech_config.speech_recognition_language = source_lang
             
             push_stream = speechsdk.audio.PushAudioInputStream()
