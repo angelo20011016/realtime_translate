@@ -1,0 +1,29 @@
+graph TD
+    subgraph "使用者瀏覽器 (Client)"
+        A[Frontend - HTML/JS/CSS]
+    end
+
+    subgraph "後端伺服器 (Backend Server - Flask)"
+        B[網頁路由 - src/routes.py]
+        C[WebSocket 處理器 - src/socket_handlers.py]
+        D[語音服務 - src/speech_service.py]
+        E[翻譯服務 - src/translation_service.py]
+    end
+
+    subgraph "外部 API (External APIs)"
+        G[Azure 語音轉文字服務]
+        H[Google 生成式 AI (翻譯)]
+    end
+
+    A -- "HTTP 請求" --> B
+    B -- "提供 HTML 頁面" --> A
+    A -- "建立 WebSocket 連線 & 傳輸音訊串流" --> C
+    C -- "轉發音訊" --> D
+    D -- "API 呼叫" --> G
+    G -- "返回文字" --> D
+    D -- "返回文字" --> C
+    C -- "傳送文字進行翻譯" --> E
+    E -- "API 呼叫" --> H
+    H -- "返回翻譯結果" --> E
+    E -- "返回翻譯結果" --> C
+    C -- "將翻譯結果推送至前端" --> A
