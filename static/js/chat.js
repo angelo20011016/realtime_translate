@@ -117,37 +117,72 @@ document.addEventListener("DOMContentLoaded", () => {
             interimDisplay.textContent = "";
             if (!data.original) return;
 
+            console.log("Received message from sender:", data.senderId, "My user ID:", currentUserId); // Diagnostic log
+
+            const isSent = data.senderId === currentUserId;
+
+            // The main container for the whole message line (aligns left or right)
+            const messageLine = document.createElement('div');
+            messageLine.classList.add('flex', 'w-full', 'mb-4', isSent ? 'justify-end' : 'justify-start');
+
+            // The bubble containing the message content
             const messageBubble = document.createElement('div');
-            messageBubble.classList.add('message-bubble');
-            messageBubble.classList.add(data.senderId === currentUserId ? 'sent' : 'received');
+            messageBubble.classList.add(
+                'max-w-lg', // Max width of the bubble
+                'p-3', // Padding
+                'rounded-2xl', // Rounded corners
+                'shadow-md' // A subtle shadow
+            );
 
-            const messageContent = document.createElement('div');
-            messageContent.classList.add('message-content');
+            if (isSent) {
+                messageBubble.classList.add('bg-primary', 'text-white');
+            } else {
+                messageBubble.classList.add('bg-surface-hover', 'text-text-main');
+            }
 
+            // Sender's name
             const senderInfo = document.createElement('p');
-            senderInfo.classList.add('sender-info');
-            senderInfo.textContent = data.senderId + ":";
-            messageContent.appendChild(senderInfo);
+            senderInfo.classList.add('font-bold', 'text-sm', 'mb-1');
+            // Use a different label for the user's own messages
+            senderInfo.textContent = isSent ? "You" : data.senderId; 
+            messageBubble.appendChild(senderInfo);
 
+            // Original text
             const originalP = document.createElement('p');
-            originalP.classList.add('original-text');
+            originalP.classList.add('text-sm');
+            if (isSent) {
+                originalP.classList.add('text-primary-light', 'opacity-90'); // Lighter color for own original text
+            } else {
+                originalP.classList.add('text-text-muted'); // Muted color for received original text
+            }
             originalP.textContent = data.original;
-            messageContent.appendChild(originalP);
+            messageBubble.appendChild(originalP);
+            
+            // Don't show translated text if it's the same as the original
+            if (data.translated && data.translated.toLowerCase() !== data.original.toLowerCase()) {
+                // Separator line
+                const separator = document.createElement('hr');
+                separator.classList.add('my-2', 'border-t', isSent ? 'border-white/20' : 'border-surface-border');
+                messageBubble.appendChild(separator);
 
-            const translatedP = document.createElement('p');
-            translatedP.classList.add('translated-text');
-            translatedP.textContent = data.translated;
-            messageContent.appendChild(translatedP);
+                // Translated text
+                const translatedP = document.createElement('p');
+                translatedP.classList.add('font-medium'); // Make translated text stand out a bit
+                translatedP.textContent = data.translated;
+                messageBubble.appendChild(translatedP);
+            }
 
-            messageBubble.appendChild(messageContent);
-            chatMessagesDisplay.appendChild(messageBubble);
+
+            messageLine.appendChild(messageBubble);
+            chatMessagesDisplay.appendChild(messageLine);
             chatMessagesDisplay.scrollTop = chatMessagesDisplay.scrollHeight;
 
-            if (ttsToggle.checked && data.senderId !== currentUserId) {
-                // Play TTS for received messages if TTS is enabled and it's not my own message
-                const audioBlob = new Blob([new Uint8Array(data.audio)], { type: 'audio/mpeg' });
-                audioQueue.push(audioBlob);
-                playNextInQueue();
+            if (ttsToggle.checked && !isSent) {
+                if (data.audio) {
+                    const audioBlob = new Blob([new Uint8Array(data.audio)], { type: 'audio/mpeg' });
+                    audioQueue.push(audioBlob);
+                    playNextInQueue();
+                }
             }
         });
 

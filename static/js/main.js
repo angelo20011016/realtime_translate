@@ -95,36 +95,103 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         socket.on('interim_result', (data) => {
-            let interimBubble = document.getElementById('interim-bubble');
-            if (!interimBubble) {
-                interimBubble = document.createElement('div');
-                interimBubble.id = 'interim-bubble';
-                interimBubble.classList.add('text-container', 'interim'); // Add a class for styling
-                conversationDisplay.appendChild(interimBubble);
+            if (!conversationDisplay) return;
+            let interimContainer = document.getElementById('interim-container');
+            if (!interimContainer) {
+                interimContainer = document.createElement('div');
+                interimContainer.id = 'interim-container';
+                // We don't know who is speaking yet, so align left for now.
+                interimContainer.classList.add('flex', 'w-full', 'mb-4', 'justify-start');
+                
+                const bubble = document.createElement('div');
+                bubble.id = 'interim-bubble';
+                bubble.classList.add('max-w-lg', 'p-3', 'rounded-2xl', 'shadow-md', 'bg-gray-50', 'text-gray-400', 'italic');
+                interimContainer.appendChild(bubble);
+                conversationDisplay.appendChild(interimContainer);
             }
-            interimBubble.innerHTML = `<p class="original-text">${data.text}</p>`;
+            
+            const bubble = document.getElementById('interim-bubble');
+            bubble.textContent = data.text || '...';
             conversationDisplay.scrollTop = conversationDisplay.scrollHeight;
         });
 
         socket.on('final_result', (data) => {
             lastAudioTime = Date.now();
-            const interimBubble = document.getElementById('interim-bubble');
-            if (interimBubble) interimBubble.remove();
+            if (!conversationDisplay) return;
+
+            const interimContainer = document.getElementById('interim-container');
+            if (interimContainer) interimContainer.remove();
 
             if (!data.original) return;
 
-            const entryDiv = document.createElement('div');
-            entryDiv.classList.add('text-container');
+            const modeHeader = document.querySelector('#settings-sidebar h1');
+            const isSoloMode = modeHeader && modeHeader.textContent.includes('Solo Mode');
+
+            const isPrimarySpeaker = sourceLanguageSelect && data.source_lang.startsWith(sourceLanguageSelect.value.split('-')[0]);
+
+            const messageLine = document.createElement('div');
+            let alignmentClass = 'justify-start'; // Default for conversation non-primary speaker
+            if (isSoloMode) {
+                alignmentClass = 'justify-center';
+            } else if (isPrimarySpeaker) {
+                alignmentClass = 'justify-end';
+            }
+
+            messageLine.classList.add('flex', 'w-full', 'mb-4', alignmentClass);
+
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('max-w-2xl', 'w-full', 'p-4', 'rounded-2xl', 'shadow-lg', 'border');
+            
+            // Add animation classes
+            messageBubble.classList.add('transition-all', 'duration-500', 'ease-out', 'transform', 'opacity-0', 'translate-y-3');
+
+
+            if (isSoloMode) {
+                messageBubble.classList.add('bg-white', 'border-surface-border');
+            } else if (isPrimarySpeaker) {
+                messageBubble.classList.add('bg-primary', 'text-white', 'border-transparent');
+            } else {
+                messageBubble.classList.add('bg-surface-hover', 'text-text-main', 'border-transparent');
+            }
+
+            const langName = document.createElement('p');
+            langName.classList.add('font-bold', 'text-sm', 'mb-1', 'opacity-80');
+            langName.textContent = data.source_lang;
+            messageBubble.appendChild(langName);
+
             const originalP = document.createElement('p');
-            originalP.classList.add('original-text');
+            originalP.classList.add('text-lg');
+            if (isSoloMode) {
+                originalP.classList.add('text-text-muted');
+            } else if (isPrimarySpeaker) {
+                originalP.classList.add('text-primary-light', 'opacity-90');
+            } else {
+                originalP.classList.add('text-text-muted');
+            }
             originalP.textContent = data.original;
-            entryDiv.appendChild(originalP);
+            messageBubble.appendChild(originalP);
+
+            const separator = document.createElement('hr');
+            let separatorColor = isPrimarySpeaker && !isSoloMode ? 'border-white/20' : 'border-surface-border';
+            separator.classList.add('my-3', 'border-t', separatorColor);
+            messageBubble.appendChild(separator);
+
             const translatedP = document.createElement('p');
-            translatedP.classList.add('translated-text');
+            translatedP.classList.add('font-semibold', 'text-2xl');
+             if (isSoloMode) {
+                translatedP.classList.add('text-primary');
+            }
+            messageBubble.appendChild(translatedP);
             translatedP.textContent = data.refined;
-            entryDiv.appendChild(translatedP);
-            conversationDisplay.appendChild(entryDiv);
+
+            messageLine.appendChild(messageBubble);
+            conversationDisplay.appendChild(messageLine);
             conversationDisplay.scrollTop = conversationDisplay.scrollHeight;
+
+            // Trigger the animation
+            setTimeout(() => {
+                messageBubble.classList.remove('opacity-0', 'translate-y-3');
+            }, 10);
         });
 
         socket.on('audio_synthesis_result', (data) => {
