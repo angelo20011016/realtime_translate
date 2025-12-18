@@ -46,7 +46,7 @@
 <body class="font-display bg-background-light text-text-main h-screen overflow-hidden flex selection:bg-primary-light selection:text-primary-dark">
 
     <!-- Sidebar -->
-    <aside id="settings-sidebar" class="sidebar w-80 flex-shrink-0 flex-col border-r border-surface-border bg-background-sidebar z-20 h-full overflow-y-auto no-scrollbar fixed md:relative transform -translate-x-full md:translate-x-0">
+    <aside id="settings-sidebar" class="sidebar w-80 flex-shrink-0 flex-col border-r border-surface-border bg-background-sidebar z-20 h-full overflow-y-auto no-scrollbar fixed transform">
         <div class="p-6 pb-2 flex flex-col gap-1 sticky top-0 bg-background-sidebar z-10 border-b border-surface-border">
             <a href="/" class="flex items-center gap-3">
                 <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white shadow-md shadow-red-900/20">
@@ -129,9 +129,7 @@
     <!-- Main Content -->
     <main id="main-content" class="flex-1 flex flex-col h-full relative bg-white transition-all duration-300 ease-in-out">
         <header class="h-16 border-b border-surface-border flex items-center justify-between px-6 bg-white/90 backdrop-blur z-10 sticky top-0">
-            <button id="sidebar-toggle" class="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
-                <span class="material-symbols-outlined text-[24px]">menu</span>
-            </button>
+            <div class="w-9 h-9"></div> <!-- Spacer for the fixed button -->
             <h2 id="main-title" class="text-text-main text-lg font-bold">System Audio Report</h2>
             <div id="bottom-action-bar" class="flex items-center gap-2">
                 <button id="aiSuggestionButton" class="hidden items-center justify-center gap-2 px-4 py-2 rounded-full bg-accent-pink text-white font-semibold text-sm transition-colors hover:bg-opacity-90">
@@ -159,44 +157,26 @@
     <!-- Sidebar Overlay -->
     <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-10 hidden md:hidden"></div>
 
+    <button id="sidebar-toggle" class="fixed top-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-white/50 backdrop-blur-sm shadow-md hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
+        <span class="material-symbols-outlined text-[24px]">menu</span>
+    </button>
+
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="/static/js/system_common.js"></script>
     <script src="/static/js/system_translate.js"></script>
     <script src="/static/js/system_summarize.js"></script>
     <script src="/static/js/system_interview.js"></script>
     <script src="/static/js/system_audio.js"></script>
+    <script src="/static/js/sidebar.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const sidebar = document.getElementById('settings-sidebar');
-            const toggleButton = document.getElementById('sidebar-toggle');
-            const overlay = document.getElementById('sidebar-overlay');
-
-            const openSidebar = () => sidebar.classList.remove('-translate-x-full');
-            const closeSidebar = () => sidebar.classList.add('-translate-x-full');
-
-            toggleButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (sidebar.classList.contains('-translate-x-full')) {
-                    openSidebar();
-                    overlay.classList.remove('hidden');
-                } else {
-                    closeSidebar();
-                    overlay.classList.add('hidden');
-                }
-            });
-
-            overlay.addEventListener('click', () => {
-                closeSidebar();
-                overlay.classList.add('hidden');
-            });
-            
             // Logic to update header based on mode
             const processingMode = document.getElementById('processingMode');
             const mainTitle = document.getElementById('main-title');
             const titleMap = {
-                'translate': 'Real-time Translation',
+                'translate': 'Real-time Translation Log',
                 'summarize': 'Meeting Summary',
-                'interview': 'Interview Coach'
+                'interview': 'Interview Coach Feedback'
             };
             
             const updateTitle = () => {

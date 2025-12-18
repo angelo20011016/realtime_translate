@@ -123,7 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // The main container for the whole message line (aligns left or right)
             const messageLine = document.createElement('div');
-            messageLine.classList.add('flex', 'w-full', 'mb-4', isSent ? 'justify-end' : 'justify-start');
+            messageLine.classList.add('flex', 'w-full', isSent ? 'justify-end' : 'justify-start');
 
             // The bubble containing the message content
             const messageBubble = document.createElement('div');
