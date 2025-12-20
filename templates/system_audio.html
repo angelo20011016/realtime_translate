@@ -129,7 +129,9 @@
     <!-- Main Content -->
     <main id="main-content" class="flex-1 flex flex-col h-full relative bg-white transition-all duration-300 ease-in-out">
         <header class="h-16 border-b border-surface-border flex items-center justify-between px-6 bg-white/90 backdrop-blur z-10 sticky top-0">
-            <div class="w-9 h-9"></div> <!-- Spacer for the fixed button -->
+            <button id="sidebar-toggle" class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
+                <span class="material-symbols-outlined text-[24px]">menu</span>
+            </button>
             <h2 id="main-title" class="text-text-main text-lg font-bold">System Audio Report</h2>
             <div id="bottom-action-bar" class="flex items-center gap-2">
                 <button id="aiSuggestionButton" class="hidden items-center justify-center gap-2 px-4 py-2 rounded-full bg-accent-pink text-white font-semibold text-sm transition-colors hover:bg-opacity-90">
@@ -156,10 +158,6 @@
     
     <!-- Sidebar Overlay -->
     <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-10 hidden md:hidden"></div>
-
-    <button id="sidebar-toggle" class="fixed top-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-white/50 backdrop-blur-sm shadow-md hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
-        <span class="material-symbols-outlined text-[24px]">menu</span>
-    </button>
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="/static/js/system_common.js"></script>
